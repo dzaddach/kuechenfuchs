@@ -1,0 +1,24 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Angular / Node
+node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
