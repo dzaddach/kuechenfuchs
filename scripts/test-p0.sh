@@ -100,7 +100,7 @@ if [[ -z "$bundle_path" ]]; then
 fi
 
 bundle="$(curl --fail --silent --show-error "${base_url}/${bundle_path}")"
-grep --quiet --fixed-strings 'Die lokale Entwicklungsumgebung ist bereit.' <<< "$bundle"
+grep --quiet --fixed-strings 'Meine Rezepte' <<< "$bundle"
 
 live_status="$(curl --fail --silent --show-error "${base_url}/api/health/live")"
 grep --quiet --fixed-strings '"status":"ok"' <<< "$live_status"
@@ -108,4 +108,4 @@ grep --quiet --fixed-strings '"status":"ok"' <<< "$live_status"
 ready_status="$(curl --fail --silent --show-error "${base_url}/api/health/ready")"
 grep --quiet --fixed-strings '"database":"connected"' <<< "$ready_status"
 
-echo "P0 smoke tests passed: frontend, API, PostgreSQL readiness, service health, and host-port isolation."
+echo "P0 smoke tests passed: Angular app shell, API, PostgreSQL readiness, service health, and host-port isolation."

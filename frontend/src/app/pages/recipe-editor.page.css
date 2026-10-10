@@ -1,0 +1,75 @@
+.back-link { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 24px; color: var(--muted); font-size: 11px; font-weight: 650; text-decoration: none; }
+.back-link:hover { color: var(--green); }
+.back-link app-icon { width: 16px; height: 16px; }
+.editor-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 6px; font-family: Manrope,'DM Sans',sans-serif; font-size: clamp(27px,3vw,35px); letter-spacing: -1.3px; }
+.intro { margin: 0; color: var(--muted); font-size: 12px; }
+.draft-chip { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 20px; color: var(--muted); font-size: 10px; font-weight: 650; white-space: nowrap; }
+.demo-dot { width: 7px; height: 7px; border-radius: 50%; background: #d39c4f; }
+.demo-notice { display: flex; align-items: center; gap: 11px; margin-bottom: 17px; padding: 12px 15px; border: 1px solid #e8d8b8; border-radius: 13px; color: var(--muted); background: #fbf4e7; }
+:host-context([data-theme='dark']) .demo-notice { border-color: #554a35; background: #342f24; }
+.demo-notice > span { display: grid; width: 29px; height: 29px; flex: none; place-items: center; border-radius: 9px; color: #a67734; background: #f2e5ca; }
+.demo-notice app-icon { width: 16px; height: 16px; }
+.demo-notice p { margin: 0; font-size: 10px; line-height: 1.5; }
+.demo-notice strong { color: var(--ink); }
+.form-card { margin-bottom: 13px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: 0 5px 18px rgb(52 66 55 / 4%); }
+.form-section-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 19px; }
+.step-number { display: grid; width: 29px; height: 29px; flex: none; place-items: center; border-radius: 10px; color: var(--green); background: var(--green-wash); font-size: 11px; font-weight: 800; }
+.form-section-heading h2 { margin: 0 0 3px; font-family: Manrope,'DM Sans',sans-serif; font-size: 14px; letter-spacing: -.2px; }
+.form-section-heading p { margin: 0; color: var(--muted); font-size: 10px; }
+.item-count { margin-left: auto; color: var(--muted); font-size: 9px; white-space: nowrap; }
+.field { display: grid; gap: 7px; margin-bottom: 15px; }
+.field:last-child { margin-bottom: 0; }
+.field label { color: var(--ink); font-size: 10px; font-weight: 700; }
+.field label > span:not(.optional) { color: #ba635c; }
+.field input, .field textarea, .field select, .ingredient-row input, .ingredient-row select, .step-row textarea {
+  width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--canvas); font-size: 11px;
+}
+.field input, .field select, .ingredient-row input, .ingredient-row select { height: 40px; padding: 0 11px; }
+.field textarea, .step-row textarea { padding: 10px 11px; resize: vertical; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder, .ingredient-row input::placeholder, .step-row textarea::placeholder { color: var(--muted); opacity: .78; }
+.field small { color: var(--muted); font-size: 9px; }
+.field .field-error { color: #b74c49; }
+.field-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px; }
+.number-field { position: relative; }
+.number-field input { padding-right: 75px; }
+.number-field > span { position: absolute; top: 0; right: 11px; display: grid; height: 40px; align-items: center; color: var(--muted); font-size: 9px; pointer-events: none; }
+.ingredient-labels { display: grid; grid-template-columns: 86px 95px minmax(0,1fr) 32px; gap: 8px; margin: 0 0 7px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .8px; }
+.ingredient-row { display: grid; grid-template-columns: 86px 95px minmax(0,1fr) 32px; gap: 8px; margin-bottom: 8px; }
+.row-error { grid-column: 1 / -1; margin-top: -4px; color: #b74c49; font-size: 9px; }
+.remove-button { display: grid; width: 32px; height: 38px; place-items: center; border: 0; border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; }
+.remove-button:hover:not(:disabled) { color: #b84f4f; background: #f8e9e6; }
+.remove-button:disabled { opacity: .35; cursor: not-allowed; }
+.remove-button app-icon { width: 16px; height: 16px; }
+.add-row { display: inline-flex; min-height: 35px; align-items: center; gap: 7px; margin-top: 3px; padding: 0 10px; border: 1px dashed var(--line); border-radius: 9px; color: var(--green); background: transparent; font-size: 10px; font-weight: 700; cursor: pointer; }
+.add-row:hover { background: var(--green-wash); }
+.add-row app-icon { width: 15px; height: 15px; }
+.steps-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.step-row { display: grid; grid-template-columns: 28px minmax(0,1fr) 32px; align-items: start; gap: 8px; }
+.step-index { display: grid; width: 25px; height: 25px; margin-top: 7px; place-items: center; border-radius: 50%; color: var(--green); background: var(--green-wash); font-size: 10px; font-weight: 750; }
+.step-row textarea { min-height: 55px; }
+.optional { margin-left: 4px; color: var(--muted); font-weight: 400; }
+.demo-result, .validation-summary { display: flex; align-items: center; gap: 9px; margin: 15px 0; padding: 12px 14px; border-radius: 11px; color: var(--muted); background: var(--soft); font-size: 10px; line-height: 1.5; }
+.demo-result app-icon { width: 16px; height: 16px; flex: none; color: var(--green); }
+.validation-summary { color: #a74442; background: #f8e9e6; }
+.form-actions { display: flex; justify-content: end; gap: 9px; margin-top: 19px; }
+.cancel-button, .save-button { display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; border-radius: 11px; font-size: 11px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.cancel-button { border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.save-button { border: 1px solid var(--green); color: #fffdf7; background: var(--green); }
+.save-button app-icon { width: 16px; height: 16px; }
+.required-note { margin: 12px 0 0; color: var(--muted); font-size: 9px; text-align: right; }
+.required-note > span { color: #ba635c; }
+@media (max-width: 600px) {
+  .back-link { margin-bottom: 18px; }
+  .form-card { padding: 18px 15px; }
+  .field-row { grid-template-columns: 1fr; gap: 0; }
+  .ingredient-labels { grid-template-columns: 62px 75px minmax(0,1fr) 28px; gap: 5px; font-size: 7px; }
+  .ingredient-row { grid-template-columns: 62px 75px minmax(0,1fr) 28px; gap: 5px; }
+  .ingredient-row input, .ingredient-row select { padding: 0 7px; font-size: 10px; }
+  .ingredient-row .remove-button { width: 28px; }
+  .form-actions { position: sticky; bottom: calc(75px + env(safe-area-inset-bottom)); z-index: 2; margin-inline: -18px; padding: 11px 18px; border-top: 1px solid var(--line); background: color-mix(in srgb,var(--canvas) 92%,transparent); backdrop-filter: blur(12px); }
+  .form-actions > * { flex: 1; }
+  .required-note { padding-bottom: 4px; }
+}

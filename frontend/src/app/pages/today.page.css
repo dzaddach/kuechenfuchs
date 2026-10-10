@@ -1,0 +1,64 @@
+.welcome { position: relative; display: flex; min-height: 225px; align-items: center; justify-content: space-between; overflow: hidden; padding: 33px 42px; border-radius: 25px; background: #f1efe3; }
+:host-context([data-theme='dark']) .welcome { background: #29372e; }
+.eyebrow { margin: 0 0 10px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.3px; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { margin-bottom: 9px; font-family: Manrope, 'DM Sans', sans-serif; font-size: clamp(27px, 3.3vw, 42px); font-weight: 700; letter-spacing: -1.8px; line-height: 1.13; }
+.subheading { margin-bottom: 0; color: var(--muted); font-size: 14px; }
+.mobile-break { display: none; }
+.welcome-art { position: relative; width: 265px; height: 177px; flex: none; }
+.sun { position: absolute; top: 5px; right: 38px; width: 70px; height: 70px; border-radius: 50%; background: #e5b76b; }
+.bowl { position: absolute; right: 16px; bottom: 7px; width: 190px; height: 104px; border: 8px solid #fdf9ef; border-radius: 10px 10px 94px 94px; background: linear-gradient(145deg,#da9367,#bd704f); transform: rotate(-9deg); box-shadow: 0 15px 25px rgb(99 74 52 / 16%); }
+.herb { position: absolute; z-index: 1; width: 80px; height: 20px; border-radius: 100% 0; background: #67875d; }
+.herb-one { right: 74px; bottom: 91px; transform: rotate(-40deg); }
+.herb-two { right: 34px; bottom: 105px; transform: rotate(22deg) scale(.68); }
+.section-block { margin-top: 43px; }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
+.section-heading .eyebrow { margin-bottom: 6px; }
+h2 { margin-bottom: 0; font-family: Manrope, 'DM Sans', sans-serif; font-size: clamp(20px, 2.2vw, 25px); font-weight: 700; letter-spacing: -.7px; }
+.date-chip { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 20px; color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 650; }
+.date-chip app-icon { width: 15px; height: 15px; }
+.plan-card { position: relative; display: grid; min-height: 210px; grid-template-columns: 245px 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.plan-illustration { position: relative; overflow: hidden; background: #ece5d4; }
+.illustration-plate { position: absolute; top: 50%; left: 50%; display: grid; width: 155px; height: 155px; place-items: center; border: 11px solid #fbfaf5; border-radius: 50%; background: #ecd1a8; transform: translate(-50%,-50%); box-shadow: 0 12px 24px rgb(75 62 40 / 11%); }
+.pasta { width: 88px; height: 68px; border: 7px dotted #ba8150; border-radius: 50%; transform: rotate(-24deg); }
+.basil { position: absolute; top: 36px; left: 65px; width: 24px; height: 12px; border-radius: 100% 0; background: #64815c; transform: rotate(18deg); }
+.tomato { position: absolute; right: 43px; bottom: 38px; width: 19px; height: 19px; border-radius: 50%; background: #d27a55; }
+.plan-copy { align-self: center; padding: 28px 35px; }
+.plan-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: 1px; }
+.plan-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
+.plan-copy h3 { margin: 10px 0 7px; font-family: Manrope, sans-serif; font-size: 21px; letter-spacing: -.5px; }
+.plan-copy p { max-width: 390px; margin-bottom: 14px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.text-link, .subtle-link { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 12px; font-weight: 750; text-decoration: none; }
+.text-link app-icon, .subtle-link app-icon { width: 15px; height: 15px; }
+.text-link:hover, .subtle-link:hover { color: var(--green-dark); }
+.planned-badge { position: absolute; top: 17px; right: 18px; display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }
+.planned-badge app-icon { width: 14px; height: 14px; color: var(--gold); }
+.inspiration { margin-top: 42px; }
+.inspiration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.inspiration-card { position: relative; display: grid; min-height: 145px; align-content: center; padding: 22px 23px 22px 72px; border-radius: 18px; color: var(--ink); text-decoration: none; transition: transform .15s ease; }
+.inspiration-card:hover { transform: translateY(-2px); }
+.inspiration-green { background: var(--green-wash); }
+.inspiration-peach { background: #f5e9dc; }
+:host-context([data-theme='dark']) .inspiration-peach { background: #40332a; }
+.inspiration-icon { position: absolute; top: 22px; left: 21px; display: grid; width: 36px; height: 36px; place-items: center; border-radius: 12px; color: var(--green); background: var(--surface); }
+.inspiration-card strong { margin-bottom: 6px; font-size: 14px; }
+.inspiration-card > span:not(.inspiration-icon) { color: var(--muted); font-size: 11px; }
+.card-arrow { position: absolute; right: 18px; bottom: 17px; width: 16px; height: 16px; color: var(--green); }
+.demo-disclaimer { display: flex; align-items: center; gap: 8px; margin: 27px 0 0; color: var(--muted); font-size: 11px; }
+.demo-disclaimer .demo-dot { width: 6px; height: 6px; }
+@media (max-width: 700px) {
+  .welcome { min-height: 230px; align-items: flex-start; padding: 29px 23px; }
+  h1 { font-size: 30px; letter-spacing: -1.3px; }
+  .mobile-break { display: block; }
+  .welcome-art { position: absolute; right: -49px; bottom: -15px; width: 180px; height: 140px; opacity: .72; transform: scale(.76); transform-origin: bottom right; }
+  .section-block { margin-top: 34px; }
+  .section-heading { align-items: center; }
+  .plan-card { grid-template-columns: 1fr; }
+  .plan-illustration { height: 142px; }
+  .illustration-plate { width: 123px; height: 123px; }
+  .plan-copy { padding: 22px; }
+  .planned-badge { top: 12px; right: 12px; padding: 7px 9px; border-radius: 20px; background: var(--surface); }
+  .inspiration-grid { grid-template-columns: 1fr; gap: 10px; }
+  .inspiration-card { min-height: 114px; }
+}
+@media (max-width: 380px) { .welcome { padding-inline: 18px; } h1 { font-size: 27px; } .date-chip { padding: 7px 8px; } }

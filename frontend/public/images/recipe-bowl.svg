@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="20" y1="15" x2="725" y2="500" gradientUnits="userSpaceOnUse"><stop stop-color="#E4E7D8"/><stop offset="1" stop-color="#C7D1BC"/></linearGradient>
+    <linearGradient id="bowl" x1="165" y1="117" x2="579" y2="439" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFDF5"/><stop offset="1" stop-color="#EEE8D7"/></linearGradient>
+    <linearGradient id="salmon" x1="363" y1="193" x2="482" y2="354" gradientUnits="userSpaceOnUse"><stop stop-color="#EFA77D"/><stop offset="1" stop-color="#CC765B"/></linearGradient>
+  </defs>
+  <path fill="url(#bg)" d="M0 0h760v520H0z"/>
+  <circle cx="82" cy="420" r="102" fill="#F3F0E5" opacity=".48"/>
+  <ellipse cx="380" cy="282" rx="252" ry="204" fill="#647260" opacity=".17"/>
+  <ellipse cx="380" cy="260" rx="252" ry="204" fill="url(#bowl)"/>
+  <ellipse cx="380" cy="255" rx="204" ry="158" fill="#E3C89F"/>
+  <g fill="#F5E8C8">
+    <path d="M212 255c38-74 70-67 91-25 17 35-13 90-55 93-38 2-57-29-36-68Z"/>
+    <path d="M242 324c34-48 73-44 82-11 10 36-16 68-52 68-41 0-52-26-30-57Z"/>
+  </g>
+  <g stroke="#FCF7E9" stroke-width="8" stroke-linecap="round"><path d="M215 260c22-9 43-14 69-13"/><path d="M240 321c19-8 42-12 62-9"/><path d="M273 353c13-3 25-5 39-4"/></g>
+  <path d="M347 202c-17-35 6-70 49-72 51-3 101 28 103 74 2 38-34 60-76 56-34-3-57-24-76-58Z" fill="url(#salmon)"/>
+  <g stroke="#F4C0A1" stroke-width="7" stroke-linecap="round"><path d="m365 173 100 51"/><path d="m351 198 105 54"/><path d="m386 148 102 52"/></g>
+  <g fill="#6F8960"><path d="M370 301c-42-32-43-66-18-68 26-2 44 27 39 67 24-33 53-40 62-21 9 21-17 44-57 48z"/><path d="M456 294c-29-24-28-51-8-53 21-2 34 20 28 51 20-25 41-29 47-14 6 16-15 34-46 36z"/></g>
+  <g fill="#85A0AA"><circle cx="499" cy="280" r="18"/><circle cx="523" cy="317" r="14"/><circle cx="481" cy="340" r="12"/></g>
+  <g fill="#E9F1E7"><circle cx="494" cy="276" r="4"/><circle cx="517" cy="313" r="3"/><circle cx="477" cy="336" r="3"/></g>
+  <path d="M148 173c24-3 41-17 51-39" stroke="#70865D" stroke-width="12" stroke-linecap="round"/>
+</svg>
