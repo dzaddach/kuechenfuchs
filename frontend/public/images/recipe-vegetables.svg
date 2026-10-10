@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 520" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="0" x2="700" y2="520" gradientUnits="userSpaceOnUse"><stop stop-color="#E9E1D2"/><stop offset="1" stop-color="#D8CDB9"/></linearGradient>
+    <linearGradient id="tray" x1="171" y1="117" x2="583" y2="435" gradientUnits="userSpaceOnUse"><stop stop-color="#596C56"/><stop offset="1" stop-color="#344A3D"/></linearGradient>
+    <linearGradient id="carrot" x1="330" y1="173" x2="417" y2="365" gradientUnits="userSpaceOnUse"><stop stop-color="#E7A55C"/><stop offset="1" stop-color="#CB7445"/></linearGradient>
+  </defs>
+  <path fill="url(#bg)" d="M0 0h760v520H0z"/>
+  <circle cx="659" cy="79" r="124" fill="#F5EDDC" opacity=".45"/>
+  <rect x="137" y="100" width="492" height="333" rx="45" fill="#927F68" opacity=".24" transform="rotate(-5 137 100)"/>
+  <rect x="132" y="86" width="492" height="333" rx="45" fill="url(#tray)" transform="rotate(-5 132 86)"/>
+  <g transform="rotate(-5 380 250)">
+    <path d="M228 230c-17-65 13-104 48-74 32 28 31 79 6 121-29 51-90 42-54-47Z" fill="url(#carrot)"/>
+    <path d="M247 170c-21-35-19-53-4-52 17 2 26 23 28 45 7-35 20-47 31-36 11 13 1 35-20 52" fill="#73905D"/>
+    <path d="M387 229c-4-74 37-119 72-87 34 31 17 94-24 123-44 32-66 15-48-36Z" fill="#B75E4C"/>
+    <path d="M435 161c-2-36 13-53 24-41 11 10 8 29 1 47 21-27 38-29 41-14 3 16-13 31-39 39" fill="#74875A"/>
+    <path d="M311 326c-19-53 0-99 36-89 38 10 53 58 28 93-25 36-49 38-64-4Z" fill="#DAB85D"/>
+    <path d="M372 169c-15-39 2-70 25-56 22 13 30 45 16 71-16 31-29 18-41-15Z" fill="#DA8856"/>
+    <path d="M483 322c-29-47-20-83 10-80 32 3 52 37 39 68-13 32-34 43-49 12Z" fill="#87915F"/>
+    <g fill="#70895B"><path d="M274 271c-38-23-43-53-24-57 21-5 39 20 39 54 17-30 39-38 48-23 8 16-11 36-43 42z"/><path d="M333 190c-30-27-29-53-10-53 19-1 32 23 26 50 23-24 45-25 49-8 4 17-17 31-48 31z"/></g>
+    <g fill="#F4E8BF" opacity=".85"><circle cx="223" cy="287" r="6"/><circle cx="315" cy="253" r="5"/><circle cx="426" cy="268" r="6"/><circle cx="507" cy="234" r="5"/><circle cx="464" cy="356" r="5"/><circle cx="366" cy="360" r="5"/></g>
+  </g>
+</svg>

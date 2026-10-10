@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "test": "ng test",
     "watch": "ng build --watch --configuration development"
   },
   "private": true,
@@ -13,7 +14,10 @@
     "@angular/common": "^22.2.0",
     "@angular/compiler": "^22.2.0",
     "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.2",
     "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.2",
+    "@angular/service-worker": "^22.2.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -21,6 +25,8 @@
     "@angular/build": "^22.2.2",
     "@angular/cli": "^22.2.2",
     "@angular/compiler-cli": "^22.2.0",
-    "typescript": "~6.0.2"
+    "jsdom": "^30.1.2",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.11"
   }
 }

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="fur" x1="75" y1="65" x2="435" y2="448" gradientUnits="userSpaceOnUse"><stop stop-color="#DCA15F"/><stop offset="1" stop-color="#BC7045"/></linearGradient>
+  </defs>
+  <path fill="#315F4B" d="M0 0h512v512H0z"/>
+  <path fill="url(#fur)" d="m77 113 43-81 81 59c36-12 74-12 110 0l81-59 43 81-28 204c-32 72-89 123-165 163-76-40-133-91-165-163L77 113Z"/>
+  <path fill="#FFF5E5" d="m118 141 80-19 58 76 58-76 80 19-23 160c-26 53-67 89-115 118-48-29-89-65-115-118l-23-160Z"/>
+  <path fill="#263A30" d="M187 221c0-15 11-26 25-26s25 11 25 26-11 23-25 23-25-8-25-23Zm88 0c0-15 11-26 25-26s25 11 25 26-11 23-25 23-25-8-25-23Z"/>
+  <path fill="#263A30" d="m240 267 16-12 16 12-16 14-16-14Z"/>
+  <path d="M256 281c-6 15-17 20-28 18m28-18c6 15 17 20 28 18" fill="none" stroke="#263A30" stroke-linecap="round" stroke-width="8"/>
+  <path d="M255 100c-18-34-11-58 8-54 16 3 20 24 14 44 24-24 49-20 46-2-2 14-21 25-55 29" fill="#AFC998"/>
+  <path d="M256 95c-27-22-48-22-47-7 2 15 22 25 48 22" fill="#D3DDB4"/>
+</svg>
