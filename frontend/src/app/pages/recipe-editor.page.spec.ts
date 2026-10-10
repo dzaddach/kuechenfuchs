@@ -51,4 +51,37 @@ describe('RecipeEditorPage', () => {
 
     expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Es wurde nichts gespeichert');
   });
+
+  it('prevents saving when a dynamically added preparation step is empty', async () => {
+    await TestBed.configureTestingModule({
+      imports: [RecipeEditorPage],
+      providers: [provideRouter([])],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(RecipeEditorPage);
+    fixture.detectChanges();
+
+    const name = fixture.nativeElement.querySelector('#recipe-name') as HTMLInputElement;
+    name.value = 'Mein Demo-Rezept';
+    name.dispatchEvent(new Event('input'));
+    const amount = fixture.nativeElement.querySelector('[aria-label="Menge Zutat 1"]') as HTMLInputElement;
+    amount.value = '200';
+    amount.dispatchEvent(new Event('input'));
+    const ingredient = fixture.nativeElement.querySelector('[aria-label="Zutat 1"]') as HTMLInputElement;
+    ingredient.value = 'Mehl';
+    ingredient.dispatchEvent(new Event('input'));
+    const firstStep = fixture.nativeElement.querySelector('[aria-label="Zubereitungsschritt 1"]') as HTMLTextAreaElement;
+    firstStep.value = 'Alles verrühren.';
+    firstStep.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelectorAll('.add-row')[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.save-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[aria-label="Zubereitungsschritt 2"]').getAttribute('aria-invalid')).toBe('true');
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role="status"]')).toBeNull();
+  });
 });

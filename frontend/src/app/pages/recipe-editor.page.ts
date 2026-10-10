@@ -135,7 +135,7 @@ export class RecipeEditorPage {
 
   addIngredient(): void { this.ingredients.push(this.newIngredient()); }
   removeIngredient(index: number): void { if (this.ingredients.length > 1) this.ingredients.removeAt(index); }
-  addStep(): void { this.steps.push(this.fb.control('')); }
+  addStep(): void { this.steps.push(this.fb.control('', Validators.required)); }
   removeStep(index: number): void { if (this.steps.length > 1) this.steps.removeAt(index); }
 
   showError(controlName: 'name' | 'servings' | 'minutes'): boolean {
