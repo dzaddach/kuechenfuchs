@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kuechenfuchs}
+      POSTGRES_USER: ${POSTGRES_USER:-kuechenfuchs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=\"$${POSTGRES_USER}\" --dbname=\"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - backend
+
+  api:
+    image: kuechenfuchs/api:local
+    build:
+      context: ./backend/Kuechenfuchs.Api
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      Database__Host: db
+      Database__Port: 5432
+      Database__Name: ${POSTGRES_DB:-kuechenfuchs}
+      Database__User: ${POSTGRES_USER:-kuechenfuchs}
+      Database__Password: ${POSTGRES_PASSWORD:-local-development-only}
+      Database__GssEncryptionMode: Disable
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "dotnet", "Kuechenfuchs.Api.dll", "--healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  caddy:
+    image: kuechenfuchs/web:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - backend
+      - ingress
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    internal: true
+  ingress:
