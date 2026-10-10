@@ -3,6 +3,8 @@
 **Recherche-Stichtag:** 10. Oktober 2026
 **Wichtig:** Die folgenden Beobachtungen belegen nur die öffentlich sichtbaren Seiten/Informationen am Stichtag. Sie belegen weder ein Nutzungsrecht für automatisiertes Auslesen noch eine stabile API, vollständige Preisabdeckung oder technische Eignung. Keine konkreten Preise wurden übernommen oder angenommen.
 
+Die Recherche in diesem Dokument ist eine erste Bestandsaufnahme und kein abgeschlossener Machbarkeitsnachweis. Ein separates, frühes Arbeitspaket bewertet eine konkrete Quelle nach den messbaren Kriterien in [provider-feasibility.md](./provider-feasibility.md). Eine Live-Anbindung beginnt nur nach dokumentiertem Go und ausdrücklicher Freigabe.
+
 ## Prüfstatus nach Anbieter
 
 | Anbieter | Beobachtung am Stichtag | Region/Zeit/Produktdaten | Nutzbarkeit und offene Punkte | MVP-Eignung |
@@ -15,6 +17,10 @@
 | Kaufland | Abruf der offiziellen Angebotsseite sowie Startseite aus dieser Rechercheumgebung mit HTTP 403 abgelehnt. | Nicht beurteilbar; daraus folgt nicht, dass die Seite für Nutzer nicht verfügbar ist. | Keine Aussage zu API, Preisabdeckung, Nutzungsrechten oder technischem Verfahren möglich. Kein Umgehen der Zugriffsbeschränkung. | Mock. Recherche später manuell über zulässige offizielle Dokumentation fortsetzen. |
 
 **Fazit:** Für keinen der sechs untersuchten Namen konnte bei dieser Prüfung eine belastbare, frei nutzbare und dokumentierte Angebots-API bestätigt werden. Das ist ein Recherchebefund, keine Behauptung, dass keine vertragliche oder zukünftige Partner-Schnittstelle existiert. Produktive automatische Provider sind deshalb ein eigener Freigabe- und Recherchepunkt, kein versteckter Bestandteil des MVP.
+
+## Frühe Machbarkeitsprüfung
+
+Die Shortlist-Recherche und ein möglicher technischer Probeabruf laufen parallel zu UI, Authentifizierung und Rezeptverwaltung und sollen vor Fertigstellung des Einkaufsbereichs mit einem dokumentierten Go/No-Go enden. Die Arbeitspakete MF1/MF2 und ihre Abnahmeschwellen stehen in [provider-feasibility.md](./provider-feasibility.md). Bis zu einem positiven, überprüften Ergebnis nutzt die Anwendung synthetische Mock-Daten; ein negativer Befund ist ein verwertbares Ergebnis und stoppt nicht die übrigen Produktpakete.
 
 ## Provider-Vertrag (Plan)
 

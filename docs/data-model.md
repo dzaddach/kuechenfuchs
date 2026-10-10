@@ -15,6 +15,8 @@
 | Entität | Wesentliche Felder / Zweck | Beziehungen |
 |---|---|---|
 | `User` | interne ID, Anmeldeidentität, Status, Zeitstempel | Mitglied in einem oder mehreren Haushalten |
+| `ExternalOAuthClient` | registrierter Client/Redirect-URI-Allowlist, erlaubte Scopes, Status | kontrolliert OAuth-Zugriff für ChatGPT Actions; Client-Secrets ausschließlich geschützt verwalten |
+| `OAuthGrant` | Benutzer, Haushalt, Client, gewährte Scopes, Ablauf-/Widerrufszeitpunkt, gehashte Tokenreferenzen | bindet jeden externen Zugriff an genau den zustimmenden Benutzer und Haushalt |
 | `Household` | ID, Name, Standardregion/Filialauswahl optional, Zeitstempel | besitzt Rezepte, Wochenpläne, Listen und Einstellungen |
 | `HouseholdMember` | Haushalt, Benutzer, Rolle, Status | eindeutige Mitgliedschaft; Autorisierung jeder Haushaltsressource |
 | `Recipe` | ID, Haushalt, Name, Beschreibung, Basisportionen, Status, Zeitstempel/Concurrency-Version | enthält Zutatenzeilen, Schritte und Tags |
@@ -63,6 +65,7 @@ Automatisch aggregieren darf die API nur, wenn das normalisierte Lebensmittel id
 
 - UUIDs oder vergleichbare nicht erratbare IDs; Fremdschlüssel und eindeutige Constraints für Haushaltsmitgliedschaften, stabile Produkt-IDs und Referenzen.
 - Haushaltszugriff ist eine API-Autorisierungsregel und zusätzlich durch gezielte Abfragen zu begrenzen; IDs allein sind kein Berechtigungsnachweis.
+- ChatGPT-OAuth-Grants speichern nur minimale Scopes, Benutzer-/Haushaltsbindung, Ablauf und Widerrufsstatus. Tokens sind vertrauliche Authentifizierungsdaten und dürfen nicht in Logs erscheinen; die konkrete Speicherung folgt dem gewählten gepflegten OAuth/OIDC-Baustein.
 - Rezept-/Listenänderungen erhalten eine Concurrency-Version (`rowversion`-ähnliche Anwendungs- oder ETag-Version), damit Geräteänderungen nicht still überschreiben.
 - Angebotsrohtexte und Quellenbelege nur so lange und so umfangreich speichern, wie es für Nachvollziehbarkeit, Fehleranalyse und rechtmäßige Nutzung notwendig ist.
 - Keine Speicherung kompletter Chatverläufe oder sensibler KI-Prompts standardmäßig; KI-Nutzung und Speichervorgang sind getrennt.

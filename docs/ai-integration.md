@@ -1,6 +1,6 @@
 # Küchenfuchs – KI-Integration
 
-**Stand:** 10. Oktober 2026 · **Status:** Vorschlag; KI nicht Voraussetzung für MVP
+**Stand:** 10. Oktober 2026 · **Status:** Vorschlag; KI-Rezeptverwaltung ist frühe Kernfunktion
 
 ## Zweck und Grenze
 
@@ -15,7 +15,7 @@ KI unterstützt bei Rezeptideen und optional beim Zuordnen unklarer Lebensmittel
 5. UI zeigt Entwurf mit Änderungsmöglichkeit. Es gibt keinen automatischen Schreibvorgang.
 6. Erst Nutzerbestätigung speichert über den normalen Rezept-Endpunkt.
 
-Optionale Lebensmittelzuordnung durch KI darf nur Kandidaten samt Konfidenz/Begründung liefern. Niedrige Sicherheit führt zur manuellen Auswahl. Sie ist kein MVP-Blocker.
+Die KI-Rezeptverwaltung wird nach dem manuellen Rezept-Grundablauf in einem frühen Arbeitspaket geliefert. Optionale Lebensmittelzuordnung durch KI darf nur Kandidaten samt Konfidenz/Begründung liefern. Niedrige Sicherheit führt zur manuellen Auswahl. Sie ist nicht Voraussetzung für Einkaufsmengen oder Angebotsberechnung.
 
 ## Strukturierter Vertragsentwurf
 
@@ -59,13 +59,13 @@ Anbieterpreise und Modellnamen ändern sich; in dieser Planung werden keine Betr
 - maximale Prompt- und Ausgabelänge, Zeitlimit und Rate Limit;
 - Monatsbudget und Alarm/Deaktivierung bei Überschreitung;
 - Nutzungsstatistik aggregiert, ohne Inhaltsprotokollierung;
-- KI standardmäßig optional und für den Rezept→Einkauf→Mock-MVP nicht erforderlich.
+- KI ist für den manuellen Rezept-Grundablauf und den späteren Einkauf nicht erforderlich; der vereinbarte frühe Produktumfang enthält jedoch die KI-Rezeptentwurfsfunktion.
 
 ## Teststrategie
 
 - Schema- und Domainvalidierung mit gültigen/ungültigen Beispielen; unbekannte Einheiten, leere Ausgabe, überlange Texte und ungültige Mengen.
 - API-Tests mit gefälschtem KI-Client (kein Netzwerk und keine Kosten), Timeout, Providerfehler, Refusal und Budgetüberschreitung.
-- UI-Test: Entwurf bleibt ungespeichert, bis Speichern explizit bestätigt wird.
+- UI-Test: Entwurf bleibt ungespeichert, bis Speichern explizit bestätigt wird; KI-Ausfall verhindert die manuelle Rezeptverwaltung nicht.
 - Regression: von der KI erzeugte Daten durchlaufen dieselbe Rezeptvalidierung wie Nutzereingaben.
 
 ## Quellen (abgerufen 10.10.2026)

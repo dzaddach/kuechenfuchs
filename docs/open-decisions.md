@@ -6,27 +6,37 @@
 | ID | Entscheidung / Frage | Empfehlung | Auswirkungen / Risiko | Status |
 |---|---|---|---|---|
 | D1 | Haushaltsmodell und Nutzerumfang zum MVP? | Haushalt/Mitgliedschaft von Anfang an modellieren; MVP zunächst ein privater Haushalt und wenige Konten, keine komplexen Rollen. | Auth-/Autorisierungsaufwand früh, verhindert spätere Trennung und Synchronisationsprobleme. | Auftraggeber bestätigen |
-| D2 | Authentifizierung für PWA? | ASP.NET Core Identity oder gleichwertige etablierte Lösung; Same-Origin sichere HttpOnly-Cookies mit CSRF-Schutz. | Keine Tokens im Browser-LocalStorage; genauer Login/Passwortreset-/MFA-Betrieb muss festgelegt werden. | Technische Auswahl vor Paket 2 |
-| D3 | Externe ChatGPT-Integration sofort oder später? | Später nach MVP; dann OAuth pro Benutzer mit eng begrenzten Scopes und expliziter Speicheraktion. | Action-OAuth ist zusätzlicher Auth-/Sicherheitsaufwand; Fähigkeiten und aktuelle Anforderungen vor Implementierung verifizieren. | Empfehlung: vertagen |
-| D4 | KI-Provider und Limits? | OpenAI API nur optional und backendseitig; Monatsbudget, Modell/Preis konfigurierbar, keine KI-Abhängigkeit im MVP. | Laufende variable Kosten, Aufbewahrung und Drittanbieter-Datenschutz; konkretes Modell/Limit vor Aktivierung freigeben. | Offen |
-| D5 | Erste reale Angebotsquelle? | Keine im MVP. Nach Mock-Durchstich konkrete Pilotregion und ein Anbieter wählen, nur bei belegter erlaubter Schnittstelle. | Regionale Daten, Aktualität und Nutzungsrechte nicht bestätigt; unberechtigtes Scraping oder veraltete Preise können Vertrauen/Recht verletzen. | Blockiert durch Recherche/Freigabe |
+| D2 | Authentifizierung für PWA und ChatGPT? | Früh eine gepflegte OAuth/OIDC-Lösung auswählen, die PWA-Login und ChatGPT-Actions-Authorization-Code-Flow unterstützt; PWA Same-Origin-Cookie-Session, Action eng begrenzte Scopes. Keine OAuth-Eigenentwicklung. | Kompatibilität muss praktisch und anhand aktueller offizieller Anforderungen bestätigt werden; eine lokale Entwicklungsumgebung ist für Action-Callbacks nicht öffentlich erreichbar. | Vor Auth-Paket prüfen |
+| D3 | Zeitpunkt und Umfang der ChatGPT-Integration? | Früh nach Rezept-Grundablauf; Entwurf und explizit bestätigtes Speichern, benutzerbezogen autorisiert. | Erfordert öffentlich erreichbares HTTPS-Testsystem und abgestimmte OAuth-Registrierung. | Frühe Ausbaustufe |
+| D4 | KI-Provider, Datenschutz und Limits? | OpenAI API backendseitig für den frühen PWA-KI-Assistenten; Modell/Preis konfigurierbar, Monatsbudget und klare Nutzereinwilligung. | Laufende variable Kosten, Aufbewahrung und Drittanbieter-Datenschutz; konkretes Modell/Limit vor Aktivierung freigeben. | Vor KI-Paket bestätigen |
+| D5 | Reale Angebotsquelle machbar? | Bereits in den ersten Entwicklungsphasen separater Machbarkeitsnachweis mit rechtlicher und technischer Go/No-Go-Entscheidung; Mock bleibt Fallback. | Bisher keine belastbare, frei nutzbare API bestätigt. Keine automatisierte Erfassung vor geklärter Erlaubnis. | Früh zu prüfen |
 | D6 | Caddy oder Traefik? | Caddy für einzelnen Linux-Host; Traefik nur bei bereits bestehendem Betriebsmuster/mehreren dynamischen Diensten. | Caddy reduziert zunächst Konfigurationsaufwand; Zertifikate erfordern Domain und erreichbare Ports. | Vorschlag |
-| D7 | Offline-Synchronisationstiefe? | Zunächst Offline-Lesen plus idempotentes Listen-Abhaken mit Versionskonflikten; keine umfassende bidirektionale Synchronisation. | Offline-Konflikte bleiben möglich und müssen sichtbar gelöst werden. | MVP-Kriterium bestätigen |
+| D7 | Offline-Synchronisationstiefe? | Zunächst installierbare, online arbeitende PWA; keine lokalen Datenschreibvorgänge, Offline-Datencaches oder Sync-/Konfliktlogik. | App-Daten stehen ohne API-Verbindung zunächst nicht zur Verfügung. | Zurückgestellt |
 | D8 | URL-Rezeptimport? | Nicht Teil des MVP; zunächst manuelle Rezepteingabe. Später nur erlaubte Quellen/Benutzerbestätigung, SSRF-Schutz und Copyright-/Nutzungsprüfung. | Server-URL-Abruf ist SSRF-Angriffsfläche; Rezepttexte/Bilder haben Nutzungsrechte. | Vertagt |
 | D9 | Fotos/Uploads? | Im MVP weglassen; später Speicherort, Größen-/Formatlimits, Virenprüfung, Rechte und Backup festlegen. | Uploads erhöhen Angriffs-, Speicher- und Backupumfang. | Vertagt |
 | D10 | Bewertungsziel für Optimierer? | MVP minimiert nur bekannte Packungskosten bei nachvollziehbarem Stopplimit; unbekannte Preise separat zeigen, Fahrtkosten/Vorräte später. | Eine vollständige globale Kostenminimierung ist mit unvollständigen Quellen unmöglich. Keine „günstigste“ Behauptung ohne Abdeckung. | Empfehlung |
 | D11 | Betriebsziele? | Startvorschlag: tägliches Backup, RPO bis 24 h, RTO innerhalb eines Tages; vor produktiver Nutzung bestätigen. | Ohne Restore-Test und bestätigte RPO/RTO ist Selbsthosting nicht belastbar. | Auftraggeber bestätigen |
 | D12 | Hosting/Datenschutzstandort? | Server in einer vom Auftraggeber freigegebenen Region; Datenverarbeitung externer KI-Dienste separat entscheiden. | Personen-/Haushaltsdaten und potenzielle Drittlandverarbeitung; Datenschutzpflichten vor Produktionsbetrieb prüfen. | Auftraggeber klären |
 | D13 | Technologieversionen und Updatepolitik? | Zum Start unterstützte Angular/.NET/PostgreSQL-Versionen fixieren, lockfiles und Container-Digests verwenden, regelmäßige Sicherheitsupdates. | Releasezyklen und Kompatibilität; Versionen nicht vor Projektstart unnötig festschreiben. | Vor Paket 0 prüfen |
+| D14 | Öffentlicher ChatGPT-Action-Testendpunkt? | Für die frühe Ende-zu-Ende-Integration einen begrenzten HTTPS-Testendpunkt mit genehmigter Domain und OAuth-Redirects bereitstellen; bis dahin Actions lokal/fake testen. | Erfordert externe Erreichbarkeit und OAuth-Client-Konfiguration; kein ungeschützter Tunnel oder produktives Geheimnis im Repository. | Vor P5b freigeben |
+
+## Abweichungen zum ursprünglichen Plan
+
+- KI-Rezeptentwürfe und externe ChatGPT-Actions wurden von späteren Ausbaustufen in frühe Pakete nach dem Rezept-Grundablauf vorgezogen.
+- Ein visuell ausgearbeitetes, iPhone-taugliches UI und eine installierbare Online-PWA entstehen früh; Offline-Datenzugriff und Synchronisation wurden dagegen zurückgestellt.
+- Docker Compose ist nicht mehr nur Produktions-/spätere Betriebsziel, sondern die reproduzierbare lokale Entwicklungsumgebung ab Paket 0.
+- Die Prüfung realer Angebotsquellen startet parallel zu den ersten Entwicklungspaketen und erhält einen eigenen Machbarkeitsnachweis mit messbaren Go/No-Go-Kriterien. Mock-Angebote bleiben unabhängig davon der Test- und Fallbackpfad.
+- Der Implementierungsplan ist in kleinere, einzeln test- und reviewbare Lieferungen aufgeteilt; ein erster praktisch nutzbarer Rezeptbereich entsteht vor Einkaufsoptimierung.
 
 ## Hauptrisiken und Gegenmaßnahmen
 
-1. **Angebotsquellen fehlen/ändern sich:** Start mit Mock, Adaptervertrag, Quellenstatus und explizit unbekannten Preisen; echte Quellen einzeln freigeben.
+1. **Angebotsquellen fehlen/ändern sich:** frühe Machbarkeitsprüfung mit dokumentiertem Go/No-Go, Mock als vollständiger Fallback, Quellenstatus und explizit unbekannte Preise.
 2. **Falsche Einheiten-/Produktzuordnung:** vier Domänen strikt trennen, dimensionsgerechte Aggregation, unsichere Treffer sichtbar bestätigen lassen.
-3. **Offline-Kollisionen:** Versionsprüfung und Konfliktanzeige statt Last-Write-Wins; Cache für sensible Daten bewusst begrenzen.
-4. **KI-Kosten und unzutreffende Inhalte:** KI nachrangig, strukturiert und domain-validiert, Budgetgrenze, keine automatische Speicherung.
-5. **URL-Import/ChatGPT-Actions erhöhen Angriffsfläche:** nicht Teil des ersten MVP; vor Aktivierung separate Threat-/Rechtsprüfung, OAuth und SSRF-Abwehr.
-6. **Einzelentwickler-Betrieb:** Modularer Monolith, kleine Pakete, automatisierte Tests, dokumentierte Wiederherstellung; keine unnötige Infrastruktur.
+3. **Offline-Nutzung:** zunächst bewusst online-only; Offline-Datensync erst nach separater fachlicher Entscheidung.
+4. **KI-Kosten und unzutreffende Inhalte:** früh, aber begrenzt; strukturiert und domain-validiert, Budgetgrenze, keine automatische Speicherung.
+5. **ChatGPT-Actions erhöhen Angriffsfläche:** etablierte OAuth/OIDC-Komponente, minimale Scopes, erreichbares HTTPS-Testsystem, Audit und separate Sicherheitsprüfung.
+6. **URL-Import erhöht Angriffsfläche:** nicht Teil des frühen Umfangs; vor Aktivierung separate Threat-/Rechtsprüfung und SSRF-Abwehr.
+7. **Einzelentwickler-Betrieb:** Modularer Monolith, kleine Pakete, Docker Compose, automatisierte Tests und dokumentierte Wiederherstellung; keine unnötige Infrastruktur.
 
 ## Freigabepunkt
 
