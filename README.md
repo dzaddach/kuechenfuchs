@@ -30,7 +30,7 @@ cp .env.example .env
 docker compose up --build --detach
 ```
 
-Die Beispielwerte sind ausschließlich für lokale Entwicklung gedacht. Für Start, Stopp, Neustart, Logs und automatisierte P0-Tests siehe [docs/deployment.md](docs/deployment.md).
+Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Logs und automatisierte P0-Tests siehe [docs/deployment.md](docs/deployment.md).
 
 Die P0-Smoke-Tests lassen sich mit `./scripts/test-p0.sh` ausführen. Sie bauen die Images, starten einen isolierten Test-Stack und entfernen diesen danach wieder.
 

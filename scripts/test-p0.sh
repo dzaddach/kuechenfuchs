@@ -5,6 +5,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project_name="kuechenfuchs-p0-test-$$"
 http_port="${HTTP_PORT:-8080}"
 export HTTP_PORT="$http_port"
+export POSTGRES_PASSWORD="p0-smoke-test-only"
 cd "$root_dir"
 
 compose() {
@@ -90,6 +91,16 @@ base_url="http://127.0.0.1:${http_port}"
 frontend="$(curl --fail --silent --show-error "${base_url}/")"
 grep --quiet --fixed-strings '<title>Küchenfuchs</title>' <<< "$frontend"
 grep --quiet --fixed-strings '<app-root' <<< "$frontend"
+grep --quiet --fixed-strings 'lang="de"' <<< "$frontend"
+
+bundle_path="$(grep -oE 'src="[^"]+\.js"' <<< "$frontend" | head -1 | cut -d '"' -f 2)"
+if [[ -z "$bundle_path" ]]; then
+  echo "Angular JavaScript bundle was not referenced by the served index page." >&2
+  exit 1
+fi
+
+bundle="$(curl --fail --silent --show-error "${base_url}/${bundle_path}")"
+grep --quiet --fixed-strings 'Die lokale Entwicklungsumgebung ist bereit.' <<< "$bundle"
 
 live_status="$(curl --fail --silent --show-error "${base_url}/api/health/live")"
 grep --quiet --fixed-strings '"status":"ok"' <<< "$live_status"
