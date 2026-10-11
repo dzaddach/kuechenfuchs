@@ -1,13 +1,39 @@
 # Küchenfuchs – P5a OAuth/OIDC-Konzept für ChatGPT Actions
 
 **Stand:** 11. Oktober 2026  
-**Status:** Planung zur unabhängigen Prüfung; keine Implementierung oder Providerinstallation freigegeben
+**Status:** Provider entschieden: **Keycloak** (Auftraggeberentscheidung vom 11.10.2026). P5a.1 – lokale Keycloak-Integration, Kontoverknüpfung und Bearer-Prüfung – ist auf `feature/p5a-keycloak` umgesetzt. Öffentliche Testdomain, Same-Origin-Routing und ChatGPT-Client-Konfiguration (P5a.2) sowie Actions (P5b) sind nicht freigegeben.
 
 ## Ziel und Abgrenzung
 
 P5a soll eine bestehende OAuth-2.0-/OIDC-Lösung sicher mit den vorhandenen ASP.NET-Core-Identity-Benutzern verbinden. Es umfasst die Autorisierungscode-Anmeldung, Tokenausgabe und -prüfung, Benutzer-/Haushaltsbindung, Widerruf sowie einen isolierten HTTPS-Test. P5a erstellt noch kein GPT, keine Action-OpenAPI-Beschreibung und keine Rezeptaktionen. Diese gehören zu P5b.
 
 Die PWA behält ihren bestehenden Same-Origin-Login mit ASP.NET Core Identity, HttpOnly-Cookie und CSRF-Schutz. P5a ersetzt, lockert oder teilt dieses Cookie nicht mit ChatGPT. OAuth-Bearer-Tokens sind ausschließlich für API-Endpunkte bestimmt, die ausdrücklich eine Bearer-Policy verlangen.
+
+## P5a.1 – Umsetzungsstand Keycloak (lokal)
+
+Keycloak wurde als lizenzkostenfreier Open-Source-Provider gewählt, damit Küchenfuchs später auch von weiteren Haushalten genutzt werden kann. Die frühere Duende-Empfehlung unten ist damit überholt und nur noch als Entscheidungshistorie enthalten.
+
+| Bereich | Umsetzung in P5a.1 |
+|---|---|
+| Laufzeit | `compose.keycloak.yaml` ergänzt `compose.yaml` um `keycloak` und `keycloak-db`. Image aus `deploy/keycloak/Dockerfile`: `quay.io/keycloak/keycloak:26.7.5` mit festem Digest, vorab per `kc.sh build` optimiert (`start --optimized`). |
+| Datenbank | Eigene PostgreSQL-17-Instanz `keycloak-db` mit Datenbank/Benutzer `keycloak`, Volume `keycloak_postgres_data`, nur im internen Netz `keycloak-backend`. Die API ist nicht in diesem Netz; die Küchenfuchs-Datenbank bleibt getrennt. |
+| Exposition | Keycloak nur an `127.0.0.1:${KEYCLOAK_PORT}`; beide PostgreSQL-Instanzen ohne Host-Port. Keine öffentliche Domain. |
+| Realm | `deploy/keycloak/import/kuechenfuchs-realm.json` (Import nur, wenn der Realm noch nicht existiert): keine Benutzer, keine Selbstregistrierung, kein Login per E-Mail, Brute-Force-Schutz, Access-Token-Laufzeit 300 s, nur `basic`-Claims (kein E-Mail-/Profilclaim). Client-Secrets und Link-Redirect kommen als Platzhalter aus Pflicht-Umgebungsvariablen. |
+| Clients | `kuechenfuchs-link`: vertraulicher Authorization-Code-Client mit erzwungenem PKCE S256 und exakt einer Redirect-URI; seine Tokens werden von der API **nicht** als Bearer akzeptiert. `chatgpt-actions`: vertraulicher Authorization-Code-Client, Audience `kuechenfuchs-api`, optionale Scopes `recipes:read`/`recipes:write`, **keine Redirect-URIs** bis zur Freigabe der GPT-ID (P5a.2). |
+| Verknüpfung | `ExternalIdentityLink` bindet `(Issuer, Subject)` an genau einen `ApplicationUser` und genau einen bewusst gewählten Haushalt. Start nur aus angemeldeter PWA-Sitzung mit CSRF-Token; `state`, `nonce`, PKCE-Verifier und Browser-Bindungs-Cookie pro Versuch; Keycloak-Anmeldung mit `prompt=login`; Code-Tausch ausschließlich serverseitig; Anfrage wird vor allen weiteren Prüfungen atomar verbraucht. Keine E-Mail-basierte Zuordnung. |
+| Bearer | Eigenes Schema `KeycloakBearer` (nicht Default). Prüft RS256-Signatur über Keycloak-JWKS, exakten Issuer, Audience `kuechenfuchs-api`, `exp`/`nbf`, `typ=Bearer`, erlaubten Client (`azp`), aktive Verknüpfung, `IsEnabled`/Sperre und pro Endpunkt Scope sowie gebundenen Haushalt inklusive aktueller Mitgliedschaft. |
+| Widerruf | `DELETE /api/v1/integrations/keycloak/links/{linkId}` setzt `RevokedAt`; da jede Bearer-Anfrage die aktive Verknüpfung in der Küchenfuchs-Datenbank prüft, wirkt der Widerruf sofort, auch für noch gültige Tokens. Über `TokensNotBefore` werden solche Tokens auch nach einer späteren Neuverknüpfung nie wieder gültig. |
+
+### Bewusste Abweichungen vom Konzept
+
+- **Haushaltsbindung pro Verknüpfung statt pro Grant:** Keycloak kennt Küchenfuchs-Haushalte nicht. Ohne eigene Keycloak-Erweiterung ist die Verknüpfung der Ort, an dem der Haushalt ausdrücklich gewählt wird. Ein Wechsel erfordert Widerruf und neue Verknüpfung. Damit gilt: eine aktive Keycloak-Identität ↔ ein Benutzer ↔ ein Haushalt.
+- **Selbsttragende JWT statt Introspection:** Sofortiger Widerruf wird über die Datenbankprüfung der Verknüpfung erreicht (fail closed bei Datenbankfehler). Keycloak-seitige Sitzungs-/Refresh-Token-Sperre für den ChatGPT-Client ist Teil von P5a.2, sobald der echte Client-Flow existiert. Restgültigkeit eines Tokens nach Keycloak-Sitzungsende: maximal 300 s, aber ohne Küchenfuchs-Verknüpfung wirkungslos.
+- **Token-Generation je Verknüpfung:** Jede Verknüpfung speichert `TokensNotBefore` = Beginn der nächsten vollen Sekunde nach dem Anlegen + `Keycloak:ClockSkewSeconds` (Standard 30 s). Akzeptiert werden nur Access-Tokens mit `iat >= TokensNotBefore`; Tokens ohne `iat` werden abgelehnt. Damit bleiben Tokens, die vor einem Widerruf, zwischen Widerruf und Neuverknüpfung oder vor der ersten Verknüpfung ausgestellt wurden, auch nach einer erneuten Verknüpfung derselben Keycloak-Identität dauerhaft ungültig. Die Rundung berücksichtigt die Sekundenauflösung von `iat`, der Zuschlag eine vorgehende Keycloak-Uhr. Folge: Erst Tokens, die nach diesem kurzen Zeitfenster (Standard rund 31 s) ausgestellt werden, funktionieren; früher geholte Tokens werden abgelehnt (fail closed), der Client holt einfach ein neues.
+- **Lokal HTTP:** `Keycloak:RequireHttpsMetadata=false` ist nur in `Development` zulässig; außerhalb davon verweigert die API den Start ohne HTTPS-Issuer, -Metadaten und -Redirect.
+
+### Offen für P5a.2
+
+Öffentliche Testdomain mit TLS, Keycloak hinter Caddy unter derselben Origin (`KC_HOSTNAME`, `KC_PROXY_HEADERS`, Pfad), Admin-Konsole nicht öffentlich, GPT-ID und exakte Callback-URIs für `chatgpt-actions`, praktischer Test von Client-Authentifizierung, PKCE- und Refresh-Verhalten, Keycloak-Consent-Text, PWA-Oberfläche für Verknüpfen/Trennen sowie Rate Limits pro Bearer-Benutzer.
 
 ## Verifizierte Anforderungen von ChatGPT Actions
 
@@ -25,6 +51,8 @@ Offizielle OpenAI-Dokumentation wurde am **11.10.2026** abgerufen. Sie kann sich
 Die Plattform dokumentiert den Authorization-Code-Austausch und `state`, aber nicht abschließend alle Details zu PKCE, Client-Authentifizierung, Refresh-Rotation oder Anbieter-spezifischen Randfällen. Diese Punkte gelten als **P5a-Kompatibilitätstests**, nicht als ungeprüfte Annahmen.
 
 ## Anbieterentscheidung
+
+*Entscheidungshistorie (vor dem 11.10.2026): Die folgende Abwägung führte zunächst zu Duende; der Auftraggeber hat sich für Keycloak entschieden (siehe P5a.1).*
 
 ### Empfehlung: zuerst Duende IdentityServer evaluieren
 
@@ -133,7 +161,7 @@ Zusätzlich prüft die API pro Request den aktiven Benutzer und die aktuelle Hau
 | `POST /connect/token` | Authorization-Code-Austausch; confidential Action-Client, exakte Redirect-Übereinstimmung, kurzlebiges Access-Token und optional rotierendes Refresh-Token |
 | `POST /connect/revocation` | Provider-seitiger Token-/Grant-Widerruf nach RFC 7009; nie als Ersatz für API-Introspection behandeln |
 | `POST /connect/introspect` | Nur authentifizierter Resource-Server-Aufruf; nicht als anonyme öffentliche Token-Validierungs-API verwenden |
-| `GET /api/v1/integrations/chatgpt/authorization-check?householdId={id}` (nur P5a-Nachweis) | Bearer-only-Testressource ohne persönliche Daten; bestätigt aktive Identität, Scope und aktuellen Zugriff auf genau den Haushalt. P5b kann sie entfernen oder ausschließlich als Diagnose nutzen. |
+| `GET /api/v1/integrations/chatgpt/households/{householdId}/authorization-check` (P5a.1 umgesetzt, nur Nachweis) | Bearer-only-Testressource ohne persönliche Daten; bestätigt aktive Identität, Scope und aktuellen Zugriff auf genau den Haushalt. P5b kann sie entfernen oder ausschließlich als Diagnose nutzen. |
 
 P5a erzeugt keine eigentlichen Rezept-Actions. P5b fügt separate Bearer-only-Rezeptoperationen hinzu. Vor P5b sind `GET /api/v1/households/{hid}/recipes`, `POST .../ai/recipe-drafts` und ein expliziter bestätigter Speichervorgang weiterhin ausschließlich nach ihrem aktuell dokumentierten Cookie-/CSRF-Vertrag verfügbar.
 

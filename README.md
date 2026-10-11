@@ -14,7 +14,9 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 **P3 – Manuelle Rezeptverwaltung:** Abgeschlossen und nach `main` gemergt. Rezepte werden haushaltsbezogen in PostgreSQL gespeichert und können gesucht, gelesen, bearbeitet, favorisiert und archiviert werden.
 
-**P4 – KI-Rezeptentwurf:** Implementierung auf `feature/p4-ai-recipes`; nicht gemergt. Der serverseitige OpenAI-Adapter liefert validierte, ungespeicherte Entwürfe, die vor dem Speichern bearbeitet und ausdrücklich übernommen werden müssen.
+**P4 – KI-Rezeptentwurf:** Abgeschlossen und nach `main` gemergt. Der serverseitige OpenAI-Adapter liefert validierte, ungespeicherte Entwürfe, die vor dem Speichern bearbeitet und ausdrücklich übernommen werden müssen.
+
+**P5a.1 – Lokale Keycloak-Integration:** Implementierung auf `feature/p5a-keycloak`; im Review, nicht gemergt. Keycloak ist der gewählte OAuth-/OIDC-Provider. Keycloak-Identitäten werden ausschließlich über eine ausdrückliche, CSRF-geschützte Verknüpfung aus der PWA-Sitzung einem Benutzer und genau einem Haushalt zugeordnet; zukünftige ChatGPT-Endpunkte nutzen eine getrennte Bearer-Authentifizierung. Keine öffentliche Domain, keine ChatGPT Actions.
 
 ## Zielbild
 
@@ -55,6 +57,8 @@ docker compose up --detach --force-recreate api
 Der API-Dienst enthält diese Bootstrap-Variablen grundsätzlich nicht. Das Datenbankvolume behält Benutzer und Haushalt; erneutes Starten der API ohne Bootstrap-Werte löscht oder ändert sie nicht. Das Bootstrap-Profil lässt sich ohne konfigurierte Zugangsdaten nicht erfolgreich ausführen, wenn die Datenbank noch leer ist. `.env` ist lokal und darf nicht committet werden. Den vollständigen sicheren Ablauf und seine Tests beschreibt [docs/deployment.md](docs/deployment.md).
 
 Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Migrationen und Backups siehe [docs/deployment.md](docs/deployment.md).
+
+Die lokale Keycloak-Testumgebung startet mit `docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach`, nachdem die `KEYCLOAK_*`-Werte in `.env` gesetzt wurden; Details in [docs/deployment.md](docs/deployment.md#lokale-keycloak-testumgebung-p5a1). Die P5a.1-Integrationstests laufen mit `bash scripts/test-p5a-keycloak.sh` (eigener Stack, zufällige Secrets, synthetische Benutzer).
 
 Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`, P2-Authentifizierungstests mit `./scripts/test-p2-auth.sh`, P3-Rezepttests mit `bash scripts/test-p3-recipes.sh` und P4-KI-Tests mit `bash scripts/test-p4-ai-recipes.sh`. Die Skripte bauen und starten isolierte Test-Stacks und entfernen sie samt Testvolumes danach wieder. Die P4-Prüfung sendet ausschließlich an den lokalen Fake-Provider.
 

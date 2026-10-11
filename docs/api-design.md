@@ -94,11 +94,25 @@ Die Speicherung erfolgt nach Prüfung/Bearbeitung im vorhandenen Rezepteditor un
 - OpenIddict ist eine etablierte .NET-Bibliothek mit OIDC-Client-, Server- und Tokenvalidierungsfunktionen, aber kein betriebsfertiger Identity Provider. Das Projekt beschreibt es ausdrücklich als Framework, das für einen eigenen Server zusätzliche Implementierung (typischerweise Autorisierungsendpunkte) benötigt. Es ist daher kein Beleg für „keinen eigenen OAuth-Server“ und wird für diesen Plan nicht als fertige Serverlösung angenommen.
 - ChatGPT-Action-Schreibaufrufe dürfen nur vom Nutzer bestätigte Rezeptdaten speichern. Action-Beschreibung, UI und API müssen diese Grenze übereinstimmend erzwingen; die Action darf nicht als verlässlicher Ersatz für Nutzerbestätigung interpretiert werden.
 
+### Keycloak-Verknüpfung und Bearer-Prüfung (P5a.1, umgesetzt)
+
+Nur aktiv mit `Keycloak__Enabled=true` (lokal über `compose.keycloak.yaml`).
+
+| Methode / Pfad | Authentifizierung | Verhalten |
+|---|---|---|
+| `POST /api/v1/integrations/keycloak/link-requests` `{ "householdId": "…" }` | PWA-Cookie + `X-KF-CSRF` | Nur aktive Mitglieder; sonst `404`. Legt eine einmalige Anfrage an (10 min), setzt das HttpOnly-Bindungscookie `KF.KeycloakLink` (SameSite=Lax, Pfad = Callback) und liefert `{ authorizationUrl, expiresAt }` (`no-store`). Die PWA navigiert per Top-Level-Navigation dorthin. Ältere offene Anfragen des Benutzers werden verworfen. |
+| `GET /api/v1/integrations/keycloak/callback?code&state` | anonym; Bindungscookie, optional passende PWA-Sitzung | Verbraucht die Anfrage atomar, prüft Ablauf, Browserbindung, tauscht den Code serverseitig (PKCE, Client-Secret) und prüft das ID-Token (Signatur, Issuer, Audience, `nonce`). Antwort immer `302` auf `/?keycloakLink=linked|conflict|expired|cancelled|failed`, ohne Tokens oder Gründe in der URL. |
+| `GET /api/v1/integrations/keycloak/links` | PWA-Cookie | Eigene Verknüpfungen (`id`, `issuer`, `householdId`, `householdName`, `createdAt`, `revokedAt`); kein externes Subject. |
+| `DELETE /api/v1/integrations/keycloak/links/{linkId}` | PWA-Cookie + `X-KF-CSRF` | Widerruf, `204`; fremde/unbekannte IDs `404`. |
+| `GET /api/v1/integrations/chatgpt/households/{householdId}/authorization-check` | ausschließlich `Authorization: Bearer` (Schema `KeycloakBearer`) | Diagnose ohne personenbezogene Daten: `{ status, householdId, scopes }`. `401` bei ungültigem Token, fehlendem `iat`, vor `TokensNotBefore` der aktiven Verknüpfung ausgestelltem Token, unbekannter/widerrufener Verknüpfung oder gesperrtem Benutzer; `403` ohne `recipes:read`; `404` für einen anderen als den gebundenen Haushalt oder bei entfernter Mitgliedschaft. Kein CSRF-Header erforderlich, Cookies werden ignoriert. |
+
+Die Bearer-Endpunkte liegen bewusst außerhalb der Cookie-geschützten `/api/v1`-Gruppe; Bearer-Tokens öffnen keine Cookie-Endpunkte und umgekehrt.
+
 ### ChatGPT-Actions und OAuth/OIDC
 
 Das konkrete P5a-Konzept, die am 11.10.2026 recherchierten Actions-Vorgaben, der Providervergleich, Token-/Haushaltsbindung, HTTPS-Anforderungen und die Implementierungs-/Testliste stehen in [ChatGPT Actions OAuth](./chatgpt-actions-oauth.md). P5a ist noch nicht freigegeben.
 
-**Vorläufige Empfehlung:** Duende IdentityServer als ASP.NET-Core-nahe Lösung mit gemeinsamem `ApplicationUser`-Bestand evaluieren, aber erst nach Klärung der Produktionslizenz und Actions-Interoperabilität. Keycloak ist ein etablierter OIDC-Provider, integriert das bestehende ASP.NET-Core-Identity-Benutzerverzeichnis jedoch nicht automatisch. Der Einsatz würde Account-Linking, getrennte Benutzerverwaltung und Same-Origin-Proxying erfordern. Kein Provider wurde installiert; es wird kein OAuth-Serverprotokoll selbst implementiert.
+**Entscheidung (11.10.2026):** Keycloak ist der OAuth-/OIDC-Provider. Da er das ASP.NET-Core-Identity-Verzeichnis nicht automatisch übernimmt, verbindet Küchenfuchs Keycloak-Identitäten ausschließlich über die explizite Verknüpfung oben. Küchenfuchs implementiert kein OAuth-Serverprotokoll und keine eigene Token-Kryptografie.
 
 Die ChatGPT-Action nutzt Authorization Code und erhält ein Bearer-Access-Token. Die API bindet ausschließlich das validierte `(iss, sub)` an einen aktiven Küchenfuchs-Benutzer. Sie prüft die aktuelle Mitgliedschaft in dem im Grant/Token festgelegten Haushalt bei jedem Zugriff. E-Mail-Claims und Client-gelieferte IDs sind keine Identitäts- oder Berechtigungsbeweise.
 

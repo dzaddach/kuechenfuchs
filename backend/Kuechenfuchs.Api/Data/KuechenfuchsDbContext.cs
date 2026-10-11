@@ -19,6 +19,8 @@ public sealed class KuechenfuchsDbContext(
     public DbSet<AiUsageReservation> AiUsageReservations => Set<AiUsageReservation>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<ExternalIdentityLink> ExternalIdentityLinks => Set<ExternalIdentityLink>();
+    public DbSet<ExternalIdentityLinkRequest> ExternalIdentityLinkRequests => Set<ExternalIdentityLinkRequest>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -141,6 +143,53 @@ public sealed class KuechenfuchsDbContext(
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(reservation => reservation.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ExternalIdentityLink>(entity =>
+        {
+            entity.HasKey(link => link.Id);
+            entity.Property(link => link.Issuer).HasMaxLength(500).IsRequired();
+            entity.Property(link => link.Subject).HasMaxLength(255).IsRequired();
+            entity.Property(link => link.CreatedAt).IsRequired();
+            entity.Property(link => link.TokensNotBefore).IsRequired();
+            entity.Property(link => link.RevokedReason).HasMaxLength(40);
+            entity.HasIndex(link => new { link.Issuer, link.Subject })
+                .IsUnique()
+                .HasFilter("\"RevokedAt\" IS NULL");
+            entity.HasIndex(link => new { link.UserId, link.Issuer })
+                .IsUnique()
+                .HasFilter("\"RevokedAt\" IS NULL");
+            entity.HasIndex(link => link.HouseholdId);
+            entity.HasOne(link => link.User)
+                .WithMany()
+                .HasForeignKey(link => link.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(link => link.Household)
+                .WithMany()
+                .HasForeignKey(link => link.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ExternalIdentityLinkRequest>(entity =>
+        {
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.StateHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(request => request.NonceHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(request => request.BrowserBindingHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(request => request.ProtectedCodeVerifier).HasMaxLength(1_000).IsRequired();
+            entity.Property(request => request.CreatedAt).IsRequired();
+            entity.Property(request => request.ExpiresAt).IsRequired();
+            entity.HasIndex(request => request.StateHash).IsUnique();
+            entity.HasIndex(request => request.UserId);
+            entity.HasIndex(request => request.ExpiresAt);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(request => request.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(request => request.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
