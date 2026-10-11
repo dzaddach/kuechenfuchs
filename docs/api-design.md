@@ -79,12 +79,21 @@ Fehlerantworten: `400` bei ungültigen Eingaben oder fehlender externer Einwilli
 
 Die Speicherung erfolgt nach Prüfung/Bearbeitung im vorhandenen Rezepteditor und ausschließlich über das bestehende `POST /api/v1/households/{hid}/recipes` mit CSRF-Schutz. Der Entwurfsendpunkt schreibt weder Rezepte noch temporäre Entitäten in die Datenbank; die monatliche Budgetentität enthält nur aggregierte Request-, Kosten- und Reservierungswerte.
 
-### ChatGPT-Actions (frühe Ausbaustufe nach Rezept-Grundablauf)
+### ChatGPT-Rezept-Actions (P5b, umgesetzt)
 
-- `GET /api/v1/chatgpt/recipes/schema` oder statisch publiziertes OpenAPI-Dokument für die Action; nur freigegebene Operations.
-- `POST /api/v1/chatgpt/recipes/drafts` liefert einen strukturierten Entwurf, schreibt nichts dauerhaft.
-- `POST /api/v1/chatgpt/recipes` speichert nur ein vom Nutzer ausdrücklich bestätigtes Rezept; Action-Beschreibung muss Bestätigung vor Aufruf verlangen.
-- Für belastbare Bestätigung kann ein kurzlebiger, benutzergebundener Entwurf erzeugt und erst in einem separaten finalen Aufruf gespeichert werden. Entwürfe laufen ab und sind keine dauerhaft gespeicherten Rezepte.
+Statisch publizierte OpenAPI-3.1-Spezifikation: [`deploy/chatgpt/kuechenfuchs-actions.openapi.json`](../deploy/chatgpt/kuechenfuchs-actions.openapi.json); Einrichtung: [chatgpt-gpt-setup.md](./chatgpt-gpt-setup.md). Alle Routen unter `/api/v1/chatgpt` sind Bearer-only (Schema `KeycloakBearer`), nutzen den Haushalt **ausschließlich** aus der verifizierten Verknüpfung (kein `householdId` im Request), prüfen bei jeder Anfrage Mitgliedschaft und Rate Limit und antworten `no-store`.
+
+| operationId | Methode / Pfad | Scope | Verhalten |
+|---|---|---|---|
+| `listRecipes` | `GET /api/v1/chatgpt/recipes?q&category&limit` | `recipes:read` | gemeinsame Suche mit der PWA (`RecipeEndpoints.Search`), nicht archiviert, max. 50, `count`/`truncated` |
+| `getRecipe` | `GET /api/v1/chatgpt/recipes/{recipeId}?servings` | `recipes:read` | Detail; `servings` (1–50) skaliert Mengen über `RecipeQuantityScaler`, speichert nichts |
+| `createRecipeDraft` | `POST /api/v1/chatgpt/recipe-drafts` | `recipes:write` | bestehender `AiRecipeDraftService` inkl. Zustimmung, Budget und Validierung; nichts gespeichert |
+| `requestRecipeSave` | `POST /api/v1/chatgpt/recipe-save-requests` | `recipes:write` | Validierung wie `POST /households/{hid}/recipes`; legt nur einen `ChatGptRecipeSaveRequest` (15 min, max. 10 offen je Verbindung) an |
+| `confirmRecipeSave` | `POST /api/v1/chatgpt/recipe-save-requests/{confirmationId}/confirm` `{ "confirmed": true }` | `recipes:write` | `x-openai-isConsequential: true`; atomar einmalig, an Verknüpfung und Haushalt gebunden; erneute Validierung, Anlage über `RecipeEndpoints.CreateRecipe`; `201`, Wiederholung `409`, abgelaufen `410` |
+
+Antwortgröße: `listRecipes` und `getRecipe` senden exakt den gemessenen, vollständigen JSON-Text und bleiben inklusive Escaping und JSON-Overhead unter 90.000 Zeichen (`ChatGptResponseLimit`; OpenAI-Grenze 100.000). Normale Rezepte werden unverändert ausgegeben. Übergroße Antworten werden schrittweise gekürzt (Schritte, Zutatennamen, Beschreibung/Tags, dann längster passender Anfang der Schritte bzw. Zutaten oder der Trefferliste) und mit `truncated: true` markiert; das gespeicherte Rezept bleibt unverändert.
+
+Eingaben sind strikt (`JsonUnmappedMemberHandling.Disallow`): unbekannte Felder wie `householdId`, `id`, `isArchived`, `version`, `foodId` führen zu `400`. Rezepttexte werden als Daten gespeichert und nicht protokolliert. Sicherheitsereignisse: Event-IDs 5201 (gespeichert) und 5202 (Speicheranfrage).
 - Authentifizierung nutzerbezogen über OAuth 2.0 Authorization Code; eng begrenzte Scopes wie `recipes:read` und `recipes:write`. Keine Haushalts-übergreifenden Sammelkonten oder globalen Bearer-Schlüssel.
 - Token kurzlebig, widerrufbar und gehasht gespeichert; `state`, feste Redirect-URI-Allowlist, Rate Limits und Audit-Ereignis für Speichervorgänge.
 - Küchenfuchs implementiert keinen eigenen OAuth-/OIDC-Autorisierungsserver. P2 verwendet ASP.NET Core Identity ausschließlich für den PWA-Login und die Same-Origin-Cookie-Session; daraus folgt keine ChatGPT-Actions-OAuth-Kompatibilität.

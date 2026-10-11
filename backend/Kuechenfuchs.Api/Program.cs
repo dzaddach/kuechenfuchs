@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Kuechenfuchs.Api.Ai;
+using Kuechenfuchs.Api.ChatGpt;
 using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.ExternalIdentity;
 using Kuechenfuchs.Api.Hosting;
@@ -347,6 +348,7 @@ if (keycloakEnabled)
 {
     api.MapExternalIdentityLinkEndpoints();
     app.MapChatGptBearerEndpoints();
+    app.MapChatGptRecipeEndpoints();
 }
 
 api.MapGet(

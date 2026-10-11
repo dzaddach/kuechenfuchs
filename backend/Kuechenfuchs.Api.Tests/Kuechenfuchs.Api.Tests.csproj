@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../../deploy/chatgpt/kuechenfuchs-actions.openapi.json" Link="kuechenfuchs-actions.openapi.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Kuechenfuchs.Api/Kuechenfuchs.Api.csproj" />
   </ItemGroup>
 </Project>

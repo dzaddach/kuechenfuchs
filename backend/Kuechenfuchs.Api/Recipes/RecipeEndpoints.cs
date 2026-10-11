@@ -119,27 +119,7 @@ public static class RecipeEndpoints
             return Results.NotFound();
         }
 
-        var query = database.Recipes.AsNoTracking()
-            .Where(recipe => recipe.HouseholdId == householdId);
-        if (includeArchived != true)
-        {
-            query = query.Where(recipe => !recipe.IsArchived);
-        }
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var normalized = q.Trim();
-            query = query.Where(recipe =>
-                EF.Functions.ILike(recipe.Name, $"%{normalized}%")
-                || EF.Functions.ILike(recipe.Description, $"%{normalized}%")
-                || recipe.Ingredients.Any(ingredient => EF.Functions.ILike(ingredient.Name, $"%{normalized}%"))
-                || recipe.Tags.Any(tag => EF.Functions.ILike(tag, $"%{normalized}%")));
-        }
-
-        if (!string.IsNullOrWhiteSpace(category))
-        {
-            query = query.Where(recipe => recipe.Category == category.Trim());
-        }
+        var query = Search(database.Recipes.AsNoTracking(), householdId, q, category, includeArchived == true);
 
         var results = await query
             .OrderBy(recipe => recipe.Name)
@@ -383,7 +363,39 @@ public static class RecipeEndpoints
         return food is null ? Results.NotFound() : Results.Ok(new FoodDto(food.Id, food.Name, food.Category));
     }
 
-    private static async Task<IResult?> ValidateAsync(
+    /// <summary>Shared recipe search (PWA and ChatGPT): name, description, ingredient names and tags.</summary>
+    internal static IQueryable<Recipe> Search(
+        IQueryable<Recipe> recipes,
+        Guid householdId,
+        string? q,
+        string? category,
+        bool includeArchived)
+    {
+        var query = recipes.Where(recipe => recipe.HouseholdId == householdId);
+        if (!includeArchived)
+        {
+            query = query.Where(recipe => !recipe.IsArchived);
+        }
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var normalized = q.Trim();
+            query = query.Where(recipe =>
+                EF.Functions.ILike(recipe.Name, $"%{normalized}%")
+                || EF.Functions.ILike(recipe.Description, $"%{normalized}%")
+                || recipe.Ingredients.Any(ingredient => EF.Functions.ILike(ingredient.Name, $"%{normalized}%"))
+                || recipe.Tags.Any(tag => EF.Functions.ILike(tag, $"%{normalized}%")));
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            query = query.Where(recipe => recipe.Category == category.Trim());
+        }
+
+        return query;
+    }
+
+    internal static async Task<IResult?> ValidateAsync(
         KuechenfuchsDbContext database,
         RecipeWriteDto request,
         CancellationToken cancellationToken)
@@ -432,7 +444,7 @@ public static class RecipeEndpoints
         return null;
     }
 
-    private static Recipe CreateRecipe(Guid householdId, RecipeWriteDto request)
+    internal static Recipe CreateRecipe(Guid householdId, RecipeWriteDto request)
     {
         var recipe = new Recipe
         {
@@ -513,7 +525,7 @@ public static class RecipeEndpoints
         }
     }
 
-    private static async Task<RecipeDetailDto> ToDetailAsync(
+    internal static async Task<RecipeDetailDto> ToDetailAsync(
         KuechenfuchsDbContext database,
         Recipe recipe,
         CancellationToken cancellationToken)

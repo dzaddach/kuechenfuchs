@@ -41,6 +41,12 @@ public static class AiRecipeEndpoints
         }
 
         var result = await draftService.CreateDraftAsync(householdId, request, cancellationToken);
+        return ToResult(result);
+    }
+
+    /// <summary>Shared HTTP mapping of draft results (PWA and ChatGPT action).</summary>
+    internal static IResult ToResult(AiRecipeDraftResult result)
+    {
         return result.Status switch
         {
             AiRecipeDraftStatus.Success when result.Draft is not null => Results.Ok(result.Draft),

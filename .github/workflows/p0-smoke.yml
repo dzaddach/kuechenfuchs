@@ -25,3 +25,5 @@ jobs:
         run: bash scripts/test-p5a-keycloak.sh
       - name: Test P5a.2 ChatGPT OAuth behind a simulated HTTPS edge
         run: bash scripts/test-p5a2-chatgpt-oauth.sh
+      - name: Test P5b ChatGPT recipe actions with simulated requests
+        run: bash scripts/test-p5b-chatgpt-recipes.sh

@@ -21,6 +21,7 @@ public sealed class KuechenfuchsDbContext(
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<ExternalIdentityLink> ExternalIdentityLinks => Set<ExternalIdentityLink>();
     public DbSet<ExternalIdentityLinkRequest> ExternalIdentityLinkRequests => Set<ExternalIdentityLinkRequest>();
+    public DbSet<ChatGptRecipeSaveRequest> ChatGptRecipeSaveRequests => Set<ChatGptRecipeSaveRequest>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -191,6 +192,33 @@ public sealed class KuechenfuchsDbContext(
                 .WithMany()
                 .HasForeignKey(request => request.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ChatGptRecipeSaveRequest>(entity =>
+        {
+            entity.HasKey(request => request.Id);
+            entity.Property(request => request.PayloadJson).HasColumnType("jsonb").IsRequired();
+            entity.Property(request => request.PayloadHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(request => request.CreatedAt).IsRequired();
+            entity.Property(request => request.ExpiresAt).IsRequired();
+            entity.HasIndex(request => new { request.LinkId, request.ConfirmedAt, request.ExpiresAt });
+            entity.HasIndex(request => request.ExpiresAt);
+            entity.HasOne<ExternalIdentityLink>()
+                .WithMany()
+                .HasForeignKey(request => request.LinkId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(request => request.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(request => request.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Recipe>()
+                .WithMany()
+                .HasForeignKey(request => request.RecipeId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Food>(entity =>

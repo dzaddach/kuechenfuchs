@@ -16,6 +16,7 @@ public static class ChatGptBearer
     public const string Scheme = "KeycloakBearer";
     public const string AuthenticatedPolicy = "ChatGptBearer";
     public const string RecipesReadPolicy = "ChatGptBearer.RecipesRead";
+    public const string RecipesWritePolicy = "ChatGptBearer.RecipesWrite";
     public const string ScopeClaim = "scope";
     public const string HouseholdClaim = "kf_household_id";
     public const string LinkClaim = "kf_link_id";
@@ -100,50 +101,72 @@ public static class ChatGptBearer
     /// hidden with 404. Successful requests update a coarse last-access timestamp (server-side usage evidence).
     /// </summary>
     public static RouteGroupBuilder RequireBoundHousehold(this RouteGroupBuilder group) =>
-        group.AddEndpointFilter(async (invocationContext, next) =>
+        group.AddEndpointFilter((invocationContext, next) => AuthorizeHouseholdAsync(invocationContext, next, requireRouteMatch: true));
+
+    /// <summary>
+    /// Same checks for ChatGPT actions without a household route parameter: the household is taken exclusively
+    /// from the verified link, never from client input, and exposed via <see cref="GetLinkedHousehold"/>.
+    /// </summary>
+    public static RouteGroupBuilder RequireLinkedHousehold(this RouteGroupBuilder group) =>
+        group.AddEndpointFilter((invocationContext, next) => AuthorizeHouseholdAsync(invocationContext, next, requireRouteMatch: false));
+
+    /// <summary>Household, user and link of the current bearer request after <see cref="RequireLinkedHousehold"/>.</summary>
+    public static LinkedHousehold GetLinkedHousehold(this HttpContext context) =>
+        context.Items[typeof(LinkedHousehold)] as LinkedHousehold
+        ?? throw new InvalidOperationException("RequireLinkedHousehold must run before this endpoint.");
+
+    private static async ValueTask<object?> AuthorizeHouseholdAsync(
+        EndpointFilterInvocationContext invocationContext,
+        EndpointFilterDelegate next,
+        bool requireRouteMatch)
+    {
+        var context = invocationContext.HttpContext;
+        var user = context.User;
+        if (!Guid.TryParse(user.FindFirstValue(LinkClaim), out var linkId)
+            || !Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            || !Guid.TryParse(user.FindFirstValue(HouseholdClaim), out var householdId))
         {
-            var context = invocationContext.HttpContext;
-            var user = context.User;
-            if (!Guid.TryParse(user.FindFirstValue(LinkClaim), out var linkId)
-                || !Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
-            {
-                return Results.NotFound();
-            }
+            return Results.NotFound();
+        }
 
-            using var lease = context.RequestServices.GetRequiredService<ChatGptBearerRateLimiter>().AttemptAcquire(linkId);
-            if (!lease.IsAcquired)
-            {
-                context.RequestServices.GetRequiredService<ILoggerFactory>()
-                    .CreateLogger(typeof(ChatGptBearer).FullName!)
-                    .LogWarning(ExternalIdentityEvents.BearerRateLimited, "Bearer rate limit reached for link {LinkId}.", linkId);
-                context.Response.Headers.RetryAfter = "60";
-                return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Request rate limit reached");
-            }
+        using var lease = context.RequestServices.GetRequiredService<ChatGptBearerRateLimiter>().AttemptAcquire(linkId);
+        if (!lease.IsAcquired)
+        {
+            context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger(typeof(ChatGptBearer).FullName!)
+                .LogWarning(ExternalIdentityEvents.BearerRateLimited, "Bearer rate limit reached for link {LinkId}.", linkId);
+            context.Response.Headers.RetryAfter = "60";
+            return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Request rate limit reached");
+        }
 
-            if (!Guid.TryParse(context.Request.RouteValues["householdId"]?.ToString(), out var householdId)
-                || !Guid.TryParse(user.FindFirstValue(HouseholdClaim), out var boundHouseholdId)
-                || boundHouseholdId != householdId)
-            {
-                return Results.NotFound();
-            }
+        if (requireRouteMatch
+            && (!Guid.TryParse(context.Request.RouteValues["householdId"]?.ToString(), out var routeHouseholdId)
+                || routeHouseholdId != householdId))
+        {
+            return Results.NotFound();
+        }
 
-            var database = context.RequestServices.GetRequiredService<KuechenfuchsDbContext>();
-            var isMember = await database.HouseholdMembers.AnyAsync(
-                member => member.HouseholdId == householdId && member.UserId == userId,
-                context.RequestAborted);
-            if (!isMember)
-            {
-                return Results.NotFound();
-            }
+        var database = context.RequestServices.GetRequiredService<KuechenfuchsDbContext>();
+        var isMember = await database.HouseholdMembers.AnyAsync(
+            member => member.HouseholdId == householdId && member.UserId == userId,
+            context.RequestAborted);
+        if (!isMember)
+        {
+            return Results.NotFound();
+        }
 
-            var now = DateTimeOffset.UtcNow;
-            var staleBefore = now.AddMinutes(-1);
-            await database.ExternalIdentityLinks
-                .Where(link => link.Id == linkId && (link.LastBearerAccessAt == null || link.LastBearerAccessAt < staleBefore))
-                .ExecuteUpdateAsync(setters => setters.SetProperty(link => link.LastBearerAccessAt, now), context.RequestAborted);
-            return await next(invocationContext);
-        });
+        var now = DateTimeOffset.UtcNow;
+        var staleBefore = now.AddMinutes(-1);
+        await database.ExternalIdentityLinks
+            .Where(link => link.Id == linkId && (link.LastBearerAccessAt == null || link.LastBearerAccessAt < staleBefore))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(link => link.LastBearerAccessAt, now), context.RequestAborted);
+        context.Items[typeof(LinkedHousehold)] = new LinkedHousehold(householdId, userId, linkId);
+        context.Response.Headers.CacheControl = "no-store";
+        return await next(invocationContext);
+    }
 }
+
+public sealed record LinkedHousehold(Guid HouseholdId, Guid UserId, Guid LinkId);
 
 /// <summary>Fixed-window limiter per linked identity for bearer endpoints (runs after authentication).</summary>
 public sealed class ChatGptBearerRateLimiter(IOptions<KeycloakOptions> options) : IDisposable
