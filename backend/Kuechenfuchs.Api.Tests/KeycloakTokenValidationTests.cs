@@ -20,6 +20,8 @@ public sealed class KeycloakTokenValidationTests : IDisposable
         MetadataAddress = Issuer + "/.well-known/openid-configuration",
         LinkRedirectUri = "https://kf.example.test/api/v1/integrations/keycloak/callback",
         LinkClientSecret = "unit-test-only",
+        AdminApiBaseUrl = "https://kf.example.test/auth",
+        AdminClientSecret = "unit-test-only",
         AllowedClientIds = ["chatgpt-actions"],
         ClockSkewSeconds = 0,
     };
@@ -219,15 +221,42 @@ public sealed class KeycloakTokenValidationTests : IDisposable
     }
 
     [Fact]
-    public void OptionsRejectPlainHttpOutsideDevelopment()
+    public void OptionsRejectPublicHttpOutsideDevelopment()
+    {
+        _options.Issuer = "http://kf.example.test/realms/kuechenfuchs";
+        Assert.Throws<InvalidOperationException>(() => _options.Validate(isDevelopment: false));
+        _options.Validate(isDevelopment: true);
+    }
+
+    [Fact]
+    public void OptionsAllowHttpBackchannelOnlyForInternalServiceNames()
     {
         _options.RequireHttpsMetadata = false;
+        _options.MetadataAddress = "http://keycloak:8080/auth/realms/kuechenfuchs/.well-known/openid-configuration";
+        _options.AdminApiBaseUrl = "http://keycloak:8080/auth";
+        _options.Validate(isDevelopment: false);
+
+        _options.AdminApiBaseUrl = "http://keycloak.example.test/auth";
         Assert.Throws<InvalidOperationException>(() => _options.Validate(isDevelopment: false));
 
+        _options.AdminApiBaseUrl = "http://keycloak:8080/auth";
         _options.RequireHttpsMetadata = true;
-        _options.Issuer = "http://kf.example.test/realms/kuechenfuchs";
+        Assert.Throws<InvalidOperationException>(() => _options.Validate(isDevelopment: false));
+    }
+
+    [Fact]
+    public void OptionsRequireChatGptClientToBeAllowedAndAdminClientExcluded()
+    {
+        _options.ChatGptClientId = "other";
+        Assert.Throws<InvalidOperationException>(() => _options.Validate(isDevelopment: true));
+
+        _options.ChatGptClientId = "chatgpt-actions";
+        _options.AllowedClientIds = ["chatgpt-actions", _options.AdminClientId];
         Assert.Throws<InvalidOperationException>(() => _options.Validate(isDevelopment: true));
     }
+
+    [Fact]
+    public void OptionsDeriveRealmFromIssuer() => Assert.Equal("kuechenfuchs", _options.RealmName);
 
     [Fact]
     public void OptionsAcceptHttpsConfiguration() => _options.Validate(isDevelopment: false);

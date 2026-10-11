@@ -1,4 +1,15 @@
+{
+	servers {
+		# Nur der vorgeschaltete Reverse Proxy (lokal/Docker, private Adressen) darf
+		# X-Forwarded-* setzen; andere Werte werden von Caddy ersetzt.
+		trusted_proxies static private_ranges
+	}
+}
+
 :80 {
+	# Optionale Routen, z. B. Keycloak aus compose.keycloak.yaml.
+	import /etc/caddy/routes.d/*.caddy
+
 	@api path /api/*
 	handle @api {
 		reverse_proxy api:8080

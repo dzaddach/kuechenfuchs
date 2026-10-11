@@ -14,8 +14,17 @@ public enum LinkCompletionStatus
     Conflict,
     Expired,
     Cancelled,
+    ProviderUnavailable,
     Failed,
 }
+
+/// <summary>
+/// ChatGPT authorization as far as the server can prove it: "authorized" only when Keycloak reports a
+/// session of the ChatGPT client for this identity; "unknown" when Keycloak cannot be asked.
+/// </summary>
+public sealed record ChatGptAuthorizationResponse(string State, DateTimeOffset? SessionLastAccessAt);
+
+public sealed record RevokeLinkResult(bool Found, bool ProviderSessionsEnded);
 
 public sealed record LinkStartResult(string AuthorizationUrl, string BrowserBinding, DateTimeOffset ExpiresAt);
 
@@ -25,7 +34,10 @@ public sealed record ExternalIdentityLinkResponse(
     Guid HouseholdId,
     string HouseholdName,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? RevokedAt);
+    DateTimeOffset? RevokedAt,
+    DateTimeOffset? ProviderSessionsRevokedAt,
+    DateTimeOffset? LastBearerAccessAt,
+    ChatGptAuthorizationResponse? ChatGpt);
 
 /// <summary>
 /// Explicit, one-time linking of a Keycloak identity to the signed-in Küchenfuchs user. Linking never uses
@@ -34,6 +46,7 @@ public sealed record ExternalIdentityLinkResponse(
 public sealed class ExternalIdentityLinkService(
     KuechenfuchsDbContext database,
     KeycloakOidcClient oidcClient,
+    KeycloakAdminClient adminClient,
     IDataProtectionProvider dataProtectionProvider,
     IOptions<KeycloakOptions> options,
     ILogger<ExternalIdentityLinkService> logger)
@@ -111,7 +124,7 @@ public sealed class ExternalIdentityLinkService(
             .SingleOrDefaultAsync(item => item.StateHash == stateHash, cancellationToken);
         if (request is null)
         {
-            logger.LogWarning("Link callback with unknown state rejected.");
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link callback with unknown state rejected.");
             return LinkCompletionStatus.Failed;
         }
 
@@ -121,7 +134,7 @@ public sealed class ExternalIdentityLinkService(
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ConsumedAt, now), cancellationToken);
         if (consumed != 1)
         {
-            logger.LogWarning("Replayed link request {LinkRequestId} rejected.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Replayed link request {LinkRequestId} rejected.", request.Id);
             return LinkCompletionStatus.Failed;
         }
 
@@ -133,7 +146,7 @@ public sealed class ExternalIdentityLinkService(
         if (!LinkSecrets.HashMatches(browserBinding, request.BrowserBindingHash)
             || (sessionUserId is not null && sessionUserId != request.UserId))
         {
-            logger.LogWarning("Link request {LinkRequestId} rejected: browser binding or session mismatch.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} rejected: browser binding or session mismatch.", request.Id);
             return LinkCompletionStatus.Failed;
         }
 
@@ -154,7 +167,7 @@ public sealed class ExternalIdentityLinkService(
         }
         catch (CryptographicException)
         {
-            logger.LogWarning("Link request {LinkRequestId} has an unreadable PKCE verifier.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} has an unreadable PKCE verifier.", request.Id);
             return LinkCompletionStatus.Failed;
         }
 
@@ -167,22 +180,61 @@ public sealed class ExternalIdentityLinkService(
         return await CreateLinkAsync(request, identity, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ExternalIdentityLinkResponse>> ListAsync(Guid userId, CancellationToken cancellationToken) =>
-        await database.ExternalIdentityLinks
+    public async Task<IReadOnlyList<ExternalIdentityLinkResponse>> ListAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var links = await database.ExternalIdentityLinks
             .AsNoTracking()
             .Where(link => link.UserId == userId)
             .OrderByDescending(link => link.CreatedAt)
-            .Select(link => new ExternalIdentityLinkResponse(
+            .Select(link => new
+            {
+                link.Id,
+                link.Issuer,
+                link.Subject,
+                link.HouseholdId,
+                HouseholdName = link.Household.Name,
+                link.CreatedAt,
+                link.RevokedAt,
+                link.ProviderSessionsRevokedAt,
+                link.LastBearerAccessAt,
+            })
+            .ToListAsync(cancellationToken);
+
+        var result = new List<ExternalIdentityLinkResponse>(links.Count);
+        foreach (var link in links)
+        {
+            ChatGptAuthorizationResponse? chatGpt = null;
+            if (link.RevokedAt is null)
+            {
+                // Every Keycloak session of this identity was ended when the link was created, so any ChatGPT
+                // session found now was authorized for this link.
+                var session = await adminClient.GetChatGptSessionAsync(link.Subject, cancellationToken);
+                chatGpt = session is null
+                    ? new ChatGptAuthorizationResponse("unknown", null)
+                    : new ChatGptAuthorizationResponse(session.Active ? "authorized" : "not-authorized", session.LastAccessAt);
+            }
+
+            result.Add(new ExternalIdentityLinkResponse(
                 link.Id,
                 link.Issuer,
                 link.HouseholdId,
-                link.Household.Name,
+                link.HouseholdName,
                 link.CreatedAt,
-                link.RevokedAt))
-            .ToListAsync(cancellationToken);
+                link.RevokedAt,
+                link.ProviderSessionsRevokedAt,
+                link.LastBearerAccessAt,
+                chatGpt));
+        }
 
-    /// <summary>Revokes one of the user's own links. Bearer access stops with the next request.</summary>
-    public async Task<bool> RevokeAsync(Guid userId, Guid linkId, CancellationToken cancellationToken)
+        return result;
+    }
+
+    /// <summary>
+    /// Revokes one of the user's own links: bearer access stops with the next request (database check), then
+    /// all Keycloak sessions of the identity are ended so that ChatGPT's refresh tokens become unusable.
+    /// Repeating the call retries ending the sessions if Keycloak was unavailable.
+    /// </summary>
+    public async Task<RevokeLinkResult> RevokeAsync(Guid userId, Guid linkId, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var revoked = await database.ExternalIdentityLinks
@@ -194,13 +246,33 @@ public sealed class ExternalIdentityLinkService(
                 cancellationToken);
         if (revoked == 1)
         {
-            logger.LogInformation("External identity link {LinkId} revoked by user {UserId}.", linkId, userId);
-            return true;
+            logger.LogInformation(ExternalIdentityEvents.LinkRevoked, "External identity link {LinkId} revoked by user {UserId}.", linkId, userId);
         }
 
-        return await database.ExternalIdentityLinks.AnyAsync(
-            link => link.Id == linkId && link.UserId == userId,
-            cancellationToken);
+        var link = await database.ExternalIdentityLinks
+            .AsNoTracking()
+            .Where(item => item.Id == linkId && item.UserId == userId)
+            .Select(item => new { item.Subject, item.ProviderSessionsRevokedAt })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (link is null)
+        {
+            return new RevokeLinkResult(false, false);
+        }
+
+        if (link.ProviderSessionsRevokedAt is not null)
+        {
+            return new RevokeLinkResult(true, true);
+        }
+
+        if (!await adminClient.EndUserSessionsAsync(link.Subject, cancellationToken))
+        {
+            return new RevokeLinkResult(true, false);
+        }
+
+        await database.ExternalIdentityLinks
+            .Where(item => item.Id == linkId && item.ProviderSessionsRevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ProviderSessionsRevokedAt, DateTimeOffset.UtcNow), cancellationToken);
+        return new RevokeLinkResult(true, true);
     }
 
     private async Task<LinkCompletionStatus> CreateLinkAsync(
@@ -215,7 +287,7 @@ public sealed class ExternalIdentityLinkService(
             cancellationToken);
         if (!isActiveMember)
         {
-            logger.LogWarning("Link request {LinkRequestId} rejected: user or membership no longer active.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} rejected: user or membership no longer active.", request.Id);
             return LinkCompletionStatus.Failed;
         }
 
@@ -226,9 +298,26 @@ public sealed class ExternalIdentityLinkService(
             cancellationToken);
         if (hasConflict)
         {
-            logger.LogWarning("Link request {LinkRequestId} rejected: identity or user already linked.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} rejected: identity or user already linked.", request.Id);
             return LinkCompletionStatus.Conflict;
         }
+
+        // End every existing Keycloak session of this identity before the link exists. Refresh tokens from
+        // earlier (e.g. revoked) ChatGPT authorizations can then never mint tokens for the new link; old access
+        // tokens are excluded by TokensNotBefore. Without this guarantee the link is not created.
+        if (!await adminClient.EndUserSessionsAsync(identity.Subject, cancellationToken))
+        {
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} rejected: Keycloak sessions could not be ended.", request.Id);
+            return LinkCompletionStatus.ProviderUnavailable;
+        }
+
+        var sessionsEndedAt = DateTimeOffset.UtcNow;
+        await database.ExternalIdentityLinks
+            .Where(link => link.Issuer == identity.Issuer
+                && link.Subject == identity.Subject
+                && link.RevokedAt != null
+                && link.ProviderSessionsRevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(link => link.ProviderSessionsRevokedAt, sessionsEndedAt), cancellationToken);
 
         var createdAt = DateTimeOffset.UtcNow;
         var link = new ExternalIdentityLink
@@ -250,11 +339,12 @@ public sealed class ExternalIdentityLinkService(
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            logger.LogWarning("Link request {LinkRequestId} rejected: concurrent link for the same identity.", request.Id);
+            logger.LogWarning(ExternalIdentityEvents.LinkRejected, "Link request {LinkRequestId} rejected: concurrent link for the same identity.", request.Id);
             return LinkCompletionStatus.Conflict;
         }
 
         logger.LogInformation(
+            ExternalIdentityEvents.LinkCreated,
             "External identity link {LinkId} created for user {UserId} and household {HouseholdId}.",
             link.Id,
             link.UserId,

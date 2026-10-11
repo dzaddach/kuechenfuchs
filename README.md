@@ -16,7 +16,9 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 **P4 – KI-Rezeptentwurf:** Abgeschlossen und nach `main` gemergt. Der serverseitige OpenAI-Adapter liefert validierte, ungespeicherte Entwürfe, die vor dem Speichern bearbeitet und ausdrücklich übernommen werden müssen.
 
-**P5a.1 – Lokale Keycloak-Integration:** Implementierung auf `feature/p5a-keycloak`; im Review, nicht gemergt. Keycloak ist der gewählte OAuth-/OIDC-Provider. Keycloak-Identitäten werden ausschließlich über eine ausdrückliche, CSRF-geschützte Verknüpfung aus der PWA-Sitzung einem Benutzer und genau einem Haushalt zugeordnet; zukünftige ChatGPT-Endpunkte nutzen eine getrennte Bearer-Authentifizierung. Keine öffentliche Domain, keine ChatGPT Actions.
+**P5a.1 – Lokale Keycloak-Integration:** Abgeschlossen und nach `main` gemergt. Keycloak ist der gewählte OAuth-/OIDC-Provider. Keycloak-Identitäten werden ausschließlich über eine ausdrückliche, CSRF-geschützte Verknüpfung aus der PWA-Sitzung einem Benutzer und genau einem Haushalt zugeordnet; zukünftige ChatGPT-Endpunkte nutzen eine getrennte Bearer-Authentifizierung. 
+
+**P5a.2 – ChatGPT-OAuth-Vorbereitung und Heimserver-Betrieb:** Implementierung auf `feature/p5a2-chatgpt-oauth`; im Review, nicht gemergt und nicht live. Keycloak läuft unter `/auth` derselben Origin, die PWA bietet **Einstellungen → ChatGPT-Verbindung** (verknüpfen, Status, trennen), und für den eigenen Heimserver gibt es `compose.homeserver.yaml`, eine Caddy-Vorlage und die [Heimserver-Anleitung](docs/homeserver-setup.md). DNS, HTTPS und der Live-Test mit ChatGPT erfolgen erst nach Freigabe; keine Rezept-Actions (P5b).
 
 ## Zielbild
 
@@ -58,7 +60,7 @@ Der API-Dienst enthält diese Bootstrap-Variablen grundsätzlich nicht. Das Date
 
 Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Migrationen und Backups siehe [docs/deployment.md](docs/deployment.md).
 
-Die lokale Keycloak-Testumgebung startet mit `docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach`, nachdem die `KEYCLOAK_*`-Werte in `.env` gesetzt wurden; Details in [docs/deployment.md](docs/deployment.md#lokale-keycloak-testumgebung-p5a1). Die P5a.1-Integrationstests laufen mit `bash scripts/test-p5a-keycloak.sh` (eigener Stack, zufällige Secrets, synthetische Benutzer).
+Die lokale Keycloak-Umgebung startet mit `docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach`, nachdem die `KEYCLOAK_*`-Werte in `.env` gesetzt wurden; Details in [docs/deployment.md](docs/deployment.md#keycloak-und-chatgpt-oauth-p5a1p5a2). Integrationstests: `bash scripts/test-p5a-keycloak.sh` (Verknüpfung und Bearer-Regeln) und `bash scripts/test-p5a2-chatgpt-oauth.sh` (Production-API hinter simuliertem Heimserver-Caddy mit HTTPS, simulierter ChatGPT-OAuth-Client). Beide nutzen eigene Stacks, zufällige Secrets und synthetische Benutzer.
 
 Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`, P2-Authentifizierungstests mit `./scripts/test-p2-auth.sh`, P3-Rezepttests mit `bash scripts/test-p3-recipes.sh` und P4-KI-Tests mit `bash scripts/test-p4-ai-recipes.sh`. Die Skripte bauen und starten isolierte Test-Stacks und entfernen sie samt Testvolumes danach wieder. Die P4-Prüfung sendet ausschließlich an den lokalen Fake-Provider.
 

@@ -1,6 +1,6 @@
 # Küchenfuchs – Architektur
 
-**Stand:** 11. Oktober 2026 · **Status:** P0–P4 umgesetzt; Architekturplanung für P5a, keine OAuth-Implementierung freigegeben
+**Stand:** 11. Oktober 2026 · **Status:** P0–P4 und P5a.1 umgesetzt; P5a.2 (ChatGPT-OAuth-Vorbereitung, Heimserver-Konfiguration) im Review
 
 ## Architekturziel
 
@@ -58,7 +58,7 @@ Die PWA sendet nur erforderliche, nutzerfreigegebene Eingaben an die API. Die AP
 
 Ein ChatGPT-Action-Client ruft mit nutzerbezogener Authentifizierung einen eng begrenzten Küchenfuchs-Endpunkt auf. Das Schreiben erfordert einen ausdrücklichen Speichervorgang. Keine ungeschützten Schreib-Endpunkte und kein globaler API-Schlüssel im Action-Schema.
 
-Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die PWA verwendet ASP.NET Core Identity mit der bestehenden Same-Origin-Cookie-Session und CSRF-Prüfung; ChatGPT Actions benötigt OAuth-Token im `Authorization`-Header. Diese PWA-Mechanismen bleiben unverändert. Für P5a wird Duende IdentityServer als ASP.NET-Core-nahe Kandidatin evaluiert, weil sie den bestehenden Identity-Benutzerbestand nutzen kann, ohne ein zweites Benutzerverzeichnis einzuführen. Produktionslizenz und Actions-Interoperabilität sind vor einer Freigabe nachzuweisen. Keycloak bleibt ein etablierter Fallback, erfordert aber explizites Account-Linking und Same-Origin-Proxying; es ist nicht direkt an die vorhandene Identity-Datenbank angeschlossen.
+Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die PWA verwendet ASP.NET Core Identity mit der bestehenden Same-Origin-Cookie-Session und CSRF-Prüfung; ChatGPT Actions benötigt OAuth-Token im `Authorization`-Header. Diese PWA-Mechanismen bleiben unverändert. OAuth-/OIDC-Provider ist Keycloak (eigener Container, eigene PostgreSQL-Instanz), unter `/auth` derselben Origin hinter Caddy. Keycloak-Identitäten werden ausschließlich über eine ausdrückliche Verknüpfung aus der PWA-Sitzung genau einem Küchenfuchs-Benutzer und Haushalt zugeordnet (`ExternalIdentityLink`). Betrieb ausschließlich auf dem eigenen Heimserver per Docker Compose hinter dem dort vorhandenen Caddy; siehe [Heimserver-Einrichtung](./homeserver-setup.md).
 
 Die API akzeptiert Actions-Zugriffe nur auf ausdrücklich Bearer-only-konfigurierten Routen/Policies. Die Identität basiert auf validiertem `(iss, sub)` und wird auf einen aktiven internen Benutzer aufgelöst. Der Grant bindet einen ausgewählten Haushalt; die API prüft dessen aktuelle Mitgliedschaft bei jedem Aufruf. Cookie-Schreibzugriffe behalten CSRF-Schutz; Action-Routen dürfen PWA-Cookies weder als Authentifizierung akzeptieren noch einen benutzerdefinierten CSRF-Header erwarten. Discovery, OAuth-Endpunkte und API müssen für Actions öffentlich über eine genehmigte HTTPS-Origin erreichbar sein. Implementierungs- und Testdetails: [P5a OAuth-Konzept](./chatgpt-actions-oauth.md), [API-Design](./api-design.md#chatgpt-actions-und-oauthoidc) und [offene Entscheidungen](./open-decisions.md).
 

@@ -33,14 +33,6 @@ const PAGES: Record<string, PageContent> = {
     phase: 'P7',
     feature: 'Zunächst mit klar gekennzeichneten Demo-Angeboten. Eine reale Quelle folgt nur nach positivem Machbarkeitsnachweis und separater Freigabe.',
   },
-  settings: {
-    eyebrow: 'DEINE KÜCHE, DEINE REGELN',
-    title: 'Einstellungen',
-    description: 'Passe Küchenfuchs an deine Gewohnheiten an.',
-    icon: 'settings',
-    phase: 'P2',
-    feature: 'Zugangsschutz und sichere Kontoeinstellungen werden vor dem persönlichen Rezeptimport eingerichtet.',
-  },
 };
 
 @Component({

@@ -1,0 +1,12 @@
+.settings-page { max-width: 650px; margin: 0 auto; padding: clamp(24px, 6vh, 60px) 0 35px; }
+.eyebrow { margin: 0 0 8px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1 { margin: 0 0 8px; font-family: Manrope, sans-serif; font-size: clamp(28px, 4vw, 38px); letter-spacing: -1px; }
+.description { margin: 0 0 22px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.settings-entry { display: flex; min-height: 64px; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; color: var(--ink); background: var(--surface); box-shadow: var(--shadow); text-decoration: none; }
+.settings-entry:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 38%, transparent); outline-offset: 2px; }
+.entry-icon { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border-radius: 13px; color: var(--green); background: var(--green-wash); }
+.entry-icon app-icon { width: 19px; height: 19px; }
+.entry-text { display: grid; flex: 1; gap: 3px; min-width: 0; }
+.entry-text strong { font-size: 14px; }
+.entry-text small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.settings-entry > app-icon { width: 16px; height: 16px; color: var(--muted); }

@@ -1,10 +1,12 @@
-# Lokale Keycloak-Testumgebung (P5a.1). Nur zusammen mit compose.yaml verwenden:
+# Keycloak-Erweiterung (P5a). Nur zusammen mit compose.yaml verwenden:
 #   docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach
-# Keycloak ist ausschließlich an 127.0.0.1 gebunden; PostgreSQL-Instanzen haben keinen Host-Port.
-# Keine öffentliche Domain, keine ChatGPT-Redirect-URIs und keine Default-Secrets.
+# Keycloak ist für Browser und Tokens ausschließlich über den Küchenfuchs-Caddy unter derselben
+# Origin erreichbar (${KUECHENFUCHS_PUBLIC_URL}/auth). Der separate Host-Port ist nur an 127.0.0.1
+# gebunden und dient der Admin-Konsole. PostgreSQL-Instanzen haben keinen Host-Port.
+# Keine Default-Secrets; für den Heimserver zusätzlich compose.homeserver.yaml verwenden.
 services:
   keycloak-db:
-    image: postgres:17-alpine
+    image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -22,7 +24,7 @@ services:
 
   keycloak:
     # Basisimage mit fester Version und Digest in deploy/keycloak/Dockerfile.
-    image: kuechenfuchs/keycloak:26.7.5-local
+    image: kuechenfuchs/keycloak:26.7.5-auth-local
     build:
       context: ./deploy/keycloak
       dockerfile: Dockerfile
@@ -30,20 +32,27 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD muss gesetzt sein}
-      # Fester Issuer für Browser und Tokens; interne Backchannel-Aufrufe der API nutzen http://keycloak:8080.
-      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8180}
+      # Fester öffentlicher Issuer (nie aus Request-Headern): ${KUECHENFUCHS_PUBLIC_URL}/auth/realms/kuechenfuchs.
+      KC_HOSTNAME: ${KUECHENFUCHS_PUBLIC_URL:-http://localhost:${HTTP_PORT:-8080}}/auth
+      # Admin-Konsole nur über den Loopback-Port bzw. SSH-Tunnel.
+      KC_HOSTNAME_ADMIN: http://localhost:${KEYCLOAK_ADMIN_PORT:-8180}/auth
+      # Interne Aufrufe der API (http://keycloak:8080/auth) erhalten interne Token-/JWKS-URLs.
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
+      # Keycloak ist nur über Caddy erreichbar; X-Forwarded-* nur aus privaten Netzen akzeptieren.
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-kuechenfuchs-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD muss gesetzt sein}
       # Platzhalter für den Realm-Import (deploy/keycloak/import/kuechenfuchs-realm.json).
       KC_LINK_CLIENT_SECRET: ${KEYCLOAK_LINK_CLIENT_SECRET:?KEYCLOAK_LINK_CLIENT_SECRET muss gesetzt sein}
-      KC_LINK_REDIRECT_URI: http://localhost:${HTTP_PORT:-8080}/api/v1/integrations/keycloak/callback
+      KC_LINK_REDIRECT_URI: ${KUECHENFUCHS_PUBLIC_URL:-http://localhost:${HTTP_PORT:-8080}}/api/v1/integrations/keycloak/callback
       KC_CHATGPT_ACTIONS_CLIENT_SECRET: ${KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET:?KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET muss gesetzt sein}
+      KC_API_ADMIN_CLIENT_SECRET: ${KEYCLOAK_API_ADMIN_CLIENT_SECRET:?KEYCLOAK_API_ADMIN_CLIENT_SECRET muss gesetzt sein}
     volumes:
       - ./deploy/keycloak/import:/opt/keycloak/data/import:ro
     ports:
-      - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
+      - "127.0.0.1:${KEYCLOAK_ADMIN_PORT:-8180}:8080"
     depends_on:
       keycloak-db:
         condition: service_healthy
@@ -52,7 +61,7 @@ services:
         - CMD-SHELL
         - >-
           exec 3<>/dev/tcp/127.0.0.1/9000 &&
-          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          printf 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
           head -n 1 <&3 | grep -q ' 200 '
       interval: 10s
       timeout: 5s
@@ -63,18 +72,28 @@ services:
       - backend
       - ingress
 
+  caddy:
+    volumes:
+      - ./deploy/caddy/routes.d/keycloak.caddy:/etc/caddy/routes.d/keycloak.caddy:ro
+
   api:
     environment:
       Keycloak__Enabled: "true"
-      Keycloak__Issuer: http://localhost:${KEYCLOAK_PORT:-8180}/realms/kuechenfuchs
-      Keycloak__MetadataAddress: http://keycloak:8080/realms/kuechenfuchs/.well-known/openid-configuration
+      Keycloak__Issuer: ${KUECHENFUCHS_PUBLIC_URL:-http://localhost:${HTTP_PORT:-8080}}/auth/realms/kuechenfuchs
+      Keycloak__MetadataAddress: http://keycloak:8080/auth/realms/kuechenfuchs/.well-known/openid-configuration
+      # Nur das interne Compose-Netz wird per HTTP angesprochen (Hostname ohne Punkt, siehe KeycloakOptions).
       Keycloak__RequireHttpsMetadata: "false"
       Keycloak__ApiAudience: kuechenfuchs-api
       Keycloak__AllowedClientIds__0: chatgpt-actions
       Keycloak__LinkClientId: kuechenfuchs-link
       Keycloak__LinkClientSecret: ${KEYCLOAK_LINK_CLIENT_SECRET:?KEYCLOAK_LINK_CLIENT_SECRET muss gesetzt sein}
-      Keycloak__LinkRedirectUri: http://localhost:${HTTP_PORT:-8080}/api/v1/integrations/keycloak/callback
+      Keycloak__LinkRedirectUri: ${KUECHENFUCHS_PUBLIC_URL:-http://localhost:${HTTP_PORT:-8080}}/api/v1/integrations/keycloak/callback
+      Keycloak__AdminApiBaseUrl: http://keycloak:8080/auth
+      Keycloak__AdminClientId: kuechenfuchs-api-admin
+      Keycloak__AdminClientSecret: ${KEYCLOAK_API_ADMIN_CLIENT_SECRET:?KEYCLOAK_API_ADMIN_CLIENT_SECRET muss gesetzt sein}
+      Keycloak__ChatGptClientId: chatgpt-actions
       Keycloak__ClockSkewSeconds: ${KEYCLOAK_CLOCK_SKEW_SECONDS:-30}
+      Keycloak__BearerRequestsPerMinute: ${CHATGPT_BEARER_REQUESTS_PER_MINUTE:-60}
 
 volumes:
   keycloak_postgres_data:

@@ -23,9 +23,14 @@
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
   "internationalizationEnabled": true,
-  "supportedLocales": ["de", "en"],
+  "supportedLocales": [
+    "de",
+    "en"
+  ],
   "defaultLocale": "de",
-  "defaultDefaultClientScopes": ["basic"],
+  "defaultDefaultClientScopes": [
+    "basic"
+  ],
   "defaultOptionalClientScopes": [],
   "clientScopes": [
     {
@@ -124,9 +129,13 @@
       "consentRequired": false,
       "frontchannelLogout": false,
       "fullScopeAllowed": false,
-      "redirectUris": ["${KC_LINK_REDIRECT_URI}"],
+      "redirectUris": [
+        "${KC_LINK_REDIRECT_URI}"
+      ],
       "webOrigins": [],
-      "defaultClientScopes": ["basic"],
+      "defaultClientScopes": [
+        "basic"
+      ],
       "optionalClientScopes": [],
       "attributes": {
         "pkce.code.challenge.method": "S256",
@@ -138,7 +147,7 @@
     {
       "clientId": "chatgpt-actions",
       "name": "ChatGPT Actions",
-      "description": "Vorbereitet für P5b. Redirect-URIs werden erst mit freigegebener GPT-ID und öffentlicher Testdomain eingetragen.",
+      "description": "ChatGPT Actions (Authorization Code, vertraulich). Redirect-URIs werden nur mit bestätigter GPT-ID über scripts/keycloak-chatgpt-client.sh eingetragen; keine Wildcards.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -153,13 +162,87 @@
       "fullScopeAllowed": false,
       "redirectUris": [],
       "webOrigins": [],
-      "defaultClientScopes": ["basic", "kuechenfuchs-api-audience"],
-      "optionalClientScopes": ["recipes:read", "recipes:write"],
+      "defaultClientScopes": [
+        "basic",
+        "kuechenfuchs-api-audience"
+      ],
+      "optionalClientScopes": [
+        "recipes:read",
+        "recipes:write"
+      ],
       "attributes": {
         "access.token.lifespan": "300",
         "oauth2.device.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false"
+        "oidc.ciba.grant.enabled": "false",
+        "use.refresh.tokens": "true",
+        "client_credentials.use_refresh_token": "false"
+      }
+    },
+    {
+      "clientId": "kuechenfuchs-api-admin",
+      "name": "Küchenfuchs API (Sitzungswiderruf)",
+      "description": "Service-Account der API, nur um beim Trennen/Neuverknüpfen Keycloak-Sitzungen (und damit Refresh-Tokens) zu beenden und den ChatGPT-Sitzungsstatus zu lesen.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KC_API_ADMIN_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "consentRequired": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "defaultClientScopes": [
+        "basic"
+      ],
+      "optionalClientScopes": [],
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "access.token.lifespan": "120"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm-management audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "realm-management",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-kuechenfuchs-api-admin",
+      "enabled": true,
+      "serviceAccountClientId": "kuechenfuchs-api-admin",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users"
+        ]
       }
     }
-  ]
+  ],
+  "clientScopeMappings": {
+    "realm-management": [
+      {
+        "client": "kuechenfuchs-api-admin",
+        "roles": [
+          "view-users",
+          "manage-users"
+        ]
+      }
+    ]
+  }
 }
