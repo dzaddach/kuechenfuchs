@@ -40,6 +40,7 @@ Ein klar sichtbarer „Rezept hinzufügen“- und „Mit KI erstellen“-Einstie
 - Separate Anleitung zum Verbinden/Autorisieren; angeforderte Rechte vor dem OAuth-Redirect verständlich benennen.
 - Nutzer kann die Berechtigung widerrufen. Erfolgreiches Speichern wird mit Rezeptlink/Bestätigung quittiert.
 - Die Integration setzt einen erreichbaren HTTPS-Endpunkt und unterstützten OAuth-Flow voraus; lokale Compose-Entwicklung allein stellt diese Erreichbarkeit nicht bereit.
+- **Umgesetzt (P5a.2):** **Einstellungen → ChatGPT-Verbindung** (`/settings/chatgpt`). Zwei getrennte Statusstufen: (1) „Keycloak-Konto verknüpft“ mit Haushalt und Zeitpunkt, (2) „ChatGPT autorisiert“ nur, wenn der Server eine ChatGPT-Sitzung in Keycloak bestätigt – sonst „noch nicht autorisiert“ bzw. „nicht prüfbar“. Verbinden: Haushalt wählen (bei einem Haushalt vorausgewählt), ausdrückliche Bestätigung, dann Top-Level-Weiterleitung zu Keycloak; Rückkehr mit verständlicher Erfolg-/Fehlermeldung, die anschließend aus der URL entfernt wird. Trennen nur nach zweiter Bestätigung; konnte Keycloak die Sitzungen nicht beenden, Hinweis mit „Erneut versuchen“. Frühere Verbindungen werden aufgelistet. Ist Keycloak auf dem Server nicht aktiviert, erklärt die Seite das, ohne andere Funktionen zu beeinträchtigen. Die Seite speichert und zeigt keine Tokens.
 
 ### Rezeptdetails
 

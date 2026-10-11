@@ -1,7 +1,7 @@
 # Küchenfuchs – P5a OAuth/OIDC-Konzept für ChatGPT Actions
 
 **Stand:** 11. Oktober 2026  
-**Status:** Provider entschieden: **Keycloak** (Auftraggeberentscheidung vom 11.10.2026). P5a.1 – lokale Keycloak-Integration, Kontoverknüpfung und Bearer-Prüfung – ist auf `feature/p5a-keycloak` umgesetzt. Öffentliche Testdomain, Same-Origin-Routing und ChatGPT-Client-Konfiguration (P5a.2) sowie Actions (P5b) sind nicht freigegeben.
+**Status:** Provider entschieden: **Keycloak** (Auftraggeberentscheidung vom 11.10.2026). P5a.1 (Kontoverknüpfung, Bearer-Prüfung) ist gemergt. P5a.2 (Same-Origin-Betrieb unter `/auth`, Heimserver-Konfiguration, ChatGPT-Client-Vorbereitung, Sitzungswiderruf, PWA-Verwaltung) ist auf `feature/p5a2-chatgpt-oauth` umgesetzt, aber nicht live. DNS/HTTPS auf dem Heimserver, der Live-Test mit einem GPT und P5b sind nicht freigegeben.
 
 ## Ziel und Abgrenzung
 
@@ -27,13 +27,37 @@ Keycloak wurde als lizenzkostenfreier Open-Source-Provider gewählt, damit Küch
 ### Bewusste Abweichungen vom Konzept
 
 - **Haushaltsbindung pro Verknüpfung statt pro Grant:** Keycloak kennt Küchenfuchs-Haushalte nicht. Ohne eigene Keycloak-Erweiterung ist die Verknüpfung der Ort, an dem der Haushalt ausdrücklich gewählt wird. Ein Wechsel erfordert Widerruf und neue Verknüpfung. Damit gilt: eine aktive Keycloak-Identität ↔ ein Benutzer ↔ ein Haushalt.
-- **Selbsttragende JWT statt Introspection:** Sofortiger Widerruf wird über die Datenbankprüfung der Verknüpfung erreicht (fail closed bei Datenbankfehler). Keycloak-seitige Sitzungs-/Refresh-Token-Sperre für den ChatGPT-Client ist Teil von P5a.2, sobald der echte Client-Flow existiert. Restgültigkeit eines Tokens nach Keycloak-Sitzungsende: maximal 300 s, aber ohne Küchenfuchs-Verknüpfung wirkungslos.
+- **Selbsttragende JWT statt Introspection:** Sofortiger Widerruf wird über die Datenbankprüfung der Verknüpfung erreicht (fail closed bei Datenbankfehler). Seit P5a.2 beendet die API zusätzlich beim Trennen und vor jeder neuen Verknüpfung alle Keycloak-Sitzungen der Identität, sodass auch Refresh-Tokens unbrauchbar werden.
 - **Token-Generation je Verknüpfung:** Jede Verknüpfung speichert `TokensNotBefore` = Beginn der nächsten vollen Sekunde nach dem Anlegen + `Keycloak:ClockSkewSeconds` (Standard 30 s). Akzeptiert werden nur Access-Tokens mit `iat >= TokensNotBefore`; Tokens ohne `iat` werden abgelehnt. Damit bleiben Tokens, die vor einem Widerruf, zwischen Widerruf und Neuverknüpfung oder vor der ersten Verknüpfung ausgestellt wurden, auch nach einer erneuten Verknüpfung derselben Keycloak-Identität dauerhaft ungültig. Die Rundung berücksichtigt die Sekundenauflösung von `iat`, der Zuschlag eine vorgehende Keycloak-Uhr. Folge: Erst Tokens, die nach diesem kurzen Zeitfenster (Standard rund 31 s) ausgestellt werden, funktionieren; früher geholte Tokens werden abgelehnt (fail closed), der Client holt einfach ein neues.
-- **Lokal HTTP:** `Keycloak:RequireHttpsMetadata=false` ist nur in `Development` zulässig; außerhalb davon verweigert die API den Start ohne HTTPS-Issuer, -Metadaten und -Redirect.
+- **HTTP nur intern:** Issuer und Link-Redirect müssen außerhalb von `Development` HTTPS sein. Discovery und Admin-API dürfen mit `Keycloak:RequireHttpsMetadata=false` per HTTP nur interne Compose-Dienstnamen ohne Punkt ansprechen (z. B. `http://keycloak:8080/auth`).
 
-### Offen für P5a.2
+## P5a.2 – ChatGPT-OAuth-Vorbereitung und Heimserver (umgesetzt, nicht live)
 
-Öffentliche Testdomain mit TLS, Keycloak hinter Caddy unter derselben Origin (`KC_HOSTNAME`, `KC_PROXY_HEADERS`, Pfad), Admin-Konsole nicht öffentlich, GPT-ID und exakte Callback-URIs für `chatgpt-actions`, praktischer Test von Client-Authentifizierung, PKCE- und Refresh-Verhalten, Keycloak-Consent-Text, PWA-Oberfläche für Verknüpfen/Trennen sowie Rate Limits pro Bearer-Benutzer.
+| Bereich | Umsetzung |
+|---|---|
+| Same Origin | Keycloak mit `http-relative-path=/auth` hinter dem Küchenfuchs-Caddy; öffentlich nur `/auth/realms/kuechenfuchs/*` und `/auth/resources/*`. Issuer `${KUECHENFUCHS_PUBLIC_URL}/auth/realms/kuechenfuchs` (Heimserver: `https://kuechenfuchs.zaddach.org/auth/realms/kuechenfuchs`). Admin-Konsole über `KC_HOSTNAME_ADMIN` nur auf einem Loopback-Port. |
+| Heimserver | `compose.homeserver.yaml` (Projekt `kuechenfuchs`, Production, `migrate`-Dienst, Restart-Policies, Forwarded-Header nur aus privaten Netzen); Caddy-Snippet `deploy/caddy/edge/kuechenfuchs.caddy` für den bestehenden Heimserver-Caddy. Anleitung: [homeserver-setup.md](./homeserver-setup.md). |
+| ChatGPT-Client | `chatgpt-actions`: vertraulich, nur Authorization Code, `client_secret_basic` und `client_secret_post` möglich, keine Redirect-URIs bis zur bestätigten GPT-ID, Refresh-Rotation, kein `offline_access`, keine E-Mail-/Profil-Claims. Pflege über `scripts/keycloak-chatgpt-client.sh` (nur exakte `https://chat.openai.com|chatgpt.com/aip/g-…/oauth/callback`, PKCE-Schalter, Secret-Rotation). |
+| Widerruf | Trennen: Verknüpfung sofort widerrufen, danach Keycloak-Sitzungen über den Service-Account `kuechenfuchs-api-admin` beenden (Refresh-Tokens ungültig, Ergebnis `providerSessionsEnded`). Vor jeder neuen Verknüpfung ebenfalls alle Sitzungen beenden; scheitert das, wird nicht verknüpft. |
+| Nachweis der Autorisierung | Die PWA zeigt „ChatGPT autorisiert“ nur, wenn Keycloak eine Sitzung des Clients `chatgpt-actions` meldet; zusätzlich der letzte erfolgreiche Bearer-Zugriff. |
+| Rate Limit | 60 Bearer-Anfragen pro Minute je Verknüpfung (`Keycloak:BearerRequestsPerMinute`), `429` mit `Retry-After`. |
+
+### Interoperabilität: geprüft vs. noch live zu prüfen
+
+| Punkt | Automatisiert geprüft (gegen Keycloak 26.7.5) | Live mit ChatGPT zu prüfen |
+|---|---|---|
+| Client-Authentifizierung am Token-Endpunkt | `client_secret_post` und `client_secret_basic` funktionieren, falsches Secret `401` | Welche Methode ChatGPT tatsächlich sendet (OpenAI-Doku nennt sie nicht; Keycloak-Log prüfen) |
+| PKCE | ohne PKCE funktioniert; mit S256 wird falscher/fehlender Verifier abgelehnt; Pflicht-PKCE per Skript lehnt Anfragen ohne Challenge ab | Ob ChatGPT `code_challenge` sendet → danach `pkce required` (D21) |
+| `state` | wird unverändert (auch mit Sonderzeichen) zurückgegeben | – |
+| Redirect-URIs | nicht registrierte/abgewandelte URIs `400` ohne Weiterleitung; Skript lehnt Wildcards, HTTP und fremde Hosts ab | Exakte von ChatGPT angezeigte Callback-URIs mit GPT-ID |
+| Tokenantwort | `access_token`, `token_type: Bearer`, `expires_in: 300`, `refresh_token` | Erneuerung durch ChatGPT nach Ablauf |
+| Refresh | Rotation; Wiederverwendung des alten Refresh-Tokens `invalid_grant`; nach Trennen/Neuverknüpfung `invalid_grant` | Verhalten nach Keycloak-Sitzungs-Idle (30 min, D20) |
+| Scopes | unbekannte Scopes und `offline_access` werden nicht gewährt; ohne `recipes:read` `403` | Scope-Feld im GPT-Editor (`openid recipes:read`) |
+| Domain/TLS | Discovery und alle Endpunkte unter derselben HTTPS-Origin (Test-CA) | Öffentliches Zertifikat, TLS 1.2+, Port 443, 45-s-Timeout |
+
+### Weiterhin offen
+
+DNS/HTTPS auf dem Heimserver, Einbau des Caddy-Snippets, GPT-ID/Callback-URIs, Live-Interoperabilitätstest, Entscheidungen D20–D23 (Verbindungsdauer, PKCE-Pflicht, Caddy-Anbindung, Keycloak-Benutzerverwaltung) sowie die Rezept-Actions (P5b).
 
 ## Verifizierte Anforderungen von ChatGPT Actions
 
@@ -200,3 +224,5 @@ Bis diese Punkte entschieden und P5a ausdrücklich freigegeben ist, bleiben Prov
 - Duende, [IdentityServer](https://docs.duendesoftware.com/identityserver/), [ASP.NET Identity integration](https://docs.duendesoftware.com/identityserver/identity/aspnet-identity/) und [Licensing](https://docs.duendesoftware.com/general/licensing/) — .NET OAuth/OIDC-Produkt, direkte ASP.NET-Core-Identity-Integration und Produktionslizenzierung.
 - Keycloak, [Server Administration Guide](https://www.keycloak.org/docs/latest/server_admin/) und [OIDC layers](https://www.keycloak.org/securing-apps/oidc-layers) — Realm-/Client-/Benutzerverwaltung und OIDC-Funktionen.
 - Microsoft, [ASP.NET Core Identity API authorization for SPAs](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/identity-api-authorization?view=aspnetcore-10.0) — Cookie-Empfehlung für Browser-SPAs und separate Token-Optionen; kein Ersatz für die hier benötigten OAuth-Autorisierungs-/Tokenendpunkte.
+- Keycloak, [Configuring a reverse proxy](https://www.keycloak.org/server/reverseproxy) und [Configuring the hostname (v2)](https://www.keycloak.org/server/hostname) (abgerufen 11.10.2026) — freizugebende Pfade (`/realms/`, `/resources/`), nicht öffentliche Pfade (`/admin/`, `/realms/master/`, `/metrics`, `/health`), `proxy-headers`/`proxy-trusted-addresses`, `hostname` als vollständige URL mit Pfad, `hostname-admin`, `hostname-backchannel-dynamic`.
+- OpenAI, GPT Action authentication / Production notes (erneut abgerufen 11.10.2026) — keine Angaben zu PKCE oder zur Client-Authentifizierungsmethode am Token-Endpunkt; daher als Live-Interoperabilitätstest geführt.

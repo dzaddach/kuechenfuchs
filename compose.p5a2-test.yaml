@@ -1,0 +1,23 @@
+# Nur für scripts/test-p5a2-chatgpt-oauth.sh: simuliert den öffentlichen Heimserver-Caddy
+# (gleiches Snippet wie produktiv, aber mit lokaler Test-CA) vor dem Production-Stack.
+services:
+  edge:
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    environment:
+      EDGE_HTTPS_PORT: ${EDGE_HTTPS_PORT:?EDGE_HTTPS_PORT muss gesetzt sein}
+    volumes:
+      - ./deploy/caddy/edge/Caddyfile.test:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/edge/kuechenfuchs.caddy:/etc/caddy/kuechenfuchs.caddy:ro
+    ports:
+      - "127.0.0.1:${EDGE_HTTPS_PORT}:${EDGE_HTTPS_PORT}"
+    depends_on:
+      caddy:
+        condition: service_healthy
+    networks:
+      ingress:
+        # Simulierter Heimserver-Caddy mit fester Adresse = einzige vertrauenswürdige Edge-Adresse.
+        ipv4_address: ${P5A2_EDGE_IP:?P5A2_EDGE_IP muss gesetzt sein}
+
+  api:
+    environment:
+      Keycloak__BearerRequestsPerMinute: ${CHATGPT_BEARER_REQUESTS_PER_MINUTE:-60}

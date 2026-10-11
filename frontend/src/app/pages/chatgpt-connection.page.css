@@ -1,0 +1,46 @@
+.connection-page { display: grid; max-width: 720px; gap: 15px; margin: 0 auto; padding-bottom: 35px; }
+.back-link { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; font-weight: 650; text-decoration: none; }
+.back-link app-icon { width: 16px; height: 16px; }
+.heading { margin-bottom: 6px; }
+.heading-mark { display: grid; width: 48px; height: 48px; margin-bottom: 14px; place-items: center; border-radius: 16px; color: var(--green); background: var(--green-wash); }
+.heading-mark app-icon { width: 23px; height: 23px; }
+.eyebrow { margin: 0 0 8px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 8px; font-family: Manrope, sans-serif; font-size: clamp(28px, 4vw, 38px); letter-spacing: -1px; }
+.heading > p:last-child { margin-bottom: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.card { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-family: Manrope, sans-serif; font-size: 15px; }
+h2 app-icon { width: 17px; height: 17px; color: var(--green); }
+.muted { color: var(--muted); font-size: 12px; line-height: 1.65; }
+.small { margin: 12px 0 0; font-size: 11px; }
+.status-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.status-steps li { display: flex; align-items: start; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--canvas); }
+.status-steps li > app-icon { flex: none; width: 20px; height: 20px; margin-top: 1px; color: var(--muted); }
+.status-steps li.done > app-icon { color: var(--green); }
+.status-steps strong { display: block; margin-bottom: 3px; font-size: 13px; }
+.status-steps small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.household-options { display: grid; gap: 9px; margin: 0 0 16px; padding: 0; border: 0; }
+.household-options label { display: flex; min-height: 46px; align-items: center; gap: 10px; padding: 0 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); font-size: 13px; font-weight: 650; }
+.household-options input, .consent input { width: 18px; height: 18px; flex: none; accent-color: var(--green); }
+.consent { display: flex; align-items: start; gap: 10px; margin-bottom: 18px; font-size: 11px; font-weight: 650; line-height: 1.55; }
+.consent input { margin: 1px 0 0; }
+.primary-button, .secondary-button, .danger-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; padding: 0 18px; border-radius: 14px; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.primary-button { width: 100%; border: 0; color: #fffdf7; background: var(--green); }
+.primary-button:hover:not(:disabled) { background: var(--green-dark); }
+.primary-button app-icon { width: 17px; height: 17px; }
+.secondary-button { border: 1px solid var(--line); color: var(--ink); background: var(--canvas); }
+.danger-button { border: 0; color: #fffdf7; background: #b0524b; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 38%, transparent); outline-offset: 2px; }
+.confirm-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.banner { margin: 0; padding: 12px 14px; border-radius: 12px; font-size: 12px; line-height: 1.55; }
+.banner.success { color: var(--green-dark); background: var(--green-wash); }
+.banner.error { color: #9f433e; background: #f9ece9; }
+.inline-button { margin-left: 6px; padding: 0; border: 0; color: inherit; background: none; font: inherit; font-weight: 750; text-decoration: underline; cursor: pointer; }
+.history h2 { color: var(--muted); font-size: 13px; }
+.history ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 600px) {
+  .card { padding: 18px; }
+  .confirm-row > button { flex: 1; }
+}

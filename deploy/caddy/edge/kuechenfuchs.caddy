@@ -1,0 +1,25 @@
+# Wiederverwendbares Snippet für den ÖFFENTLICHEN Caddy des Heimservers (TLS-Terminierung).
+# Einbinden mit:   import /pfad/zu/kuechenfuchs.caddy
+# Verwenden mit:   import kuechenfuchs_edge <upstream>
+#   <upstream> = HTTP-Adresse des Küchenfuchs-Web-Containers, z. B. 127.0.0.1:8081
+# Das Snippet verändert keine anderen Sites (z. B. Punktlandung) und setzt keine globalen Optionen.
+(kuechenfuchs_edge) {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Nur setzen, wenn die Anwendung/Keycloak keinen eigenen Wert liefert.
+		?X-Frame-Options "DENY"
+		-Server
+	}
+
+	# Keycloak-Administration, Master-Realm und Management-Endpunkte sind nie öffentlich.
+	# (Zusätzlich blockiert der interne Küchenfuchs-Caddy alles außer Realm "kuechenfuchs" und /auth/resources.)
+	@kuechenfuchs_blocked path /auth/admin /auth/admin/* /auth/realms/master /auth/realms/master/* /auth/metrics /auth/metrics/* /auth/health /auth/health/*
+	respond @kuechenfuchs_blocked 404
+
+	# Caddy setzt X-Forwarded-For/-Proto/-Host selbst und verwirft vom Client gelieferte Werte.
+	reverse_proxy {args[0]}
+}

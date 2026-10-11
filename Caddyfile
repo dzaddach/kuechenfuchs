@@ -1,4 +1,16 @@
+{
+	servers {
+		# Nur der vorgeschaltete Heimserver-Caddy darf X-Forwarded-* setzen; Werte anderer Absender
+		# ersetzt Caddy. Heimserver: konkrete Adresse über KF_TRUSTED_PROXIES (compose.homeserver.yaml).
+		# Ohne Angabe (nur lokale Entwicklung, Port an 127.0.0.1 gebunden): private Adressbereiche.
+		trusted_proxies static {$KF_TRUSTED_PROXIES:private_ranges}
+	}
+}
+
 :80 {
+	# Optionale Routen, z. B. Keycloak aus compose.keycloak.yaml.
+	import /etc/caddy/routes.d/*.caddy
+
 	@api path /api/*
 	handle @api {
 		reverse_proxy api:8080

@@ -6,7 +6,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project_name="kuechenfuchs-p5a-keycloak-test-$$"
 export HTTP_PORT="${HTTP_PORT:-54396}"
-export KEYCLOAK_PORT="${KEYCLOAK_PORT:-54397}"
+export KEYCLOAK_ADMIN_PORT="${KEYCLOAK_ADMIN_PORT:-54397}"
 export POSTGRES_DB="${POSTGRES_DB:-kuechenfuchs}"
 export POSTGRES_USER="${POSTGRES_USER:-kuechenfuchs}"
 export POSTGRES_PASSWORD="p5a-$(openssl rand -hex 16)"
@@ -15,6 +15,7 @@ export KEYCLOAK_ADMIN_USERNAME="p5a-test-admin"
 export KEYCLOAK_ADMIN_PASSWORD="$(openssl rand -hex 24)"
 export KEYCLOAK_LINK_CLIENT_SECRET="$(openssl rand -hex 32)"
 export KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET="$(openssl rand -hex 32)"
+export KEYCLOAK_API_ADMIN_CLIENT_SECRET="$(openssl rand -hex 32)"
 export KEYCLOAK_CLOCK_SKEW_SECONDS=0
 export INITIAL_ADMIN_EMAIL="p5a-keycloak-smoke@example.test"
 export INITIAL_ADMIN_PASSWORD="P5a-Smoke-$(openssl rand -hex 24)aA9!"
@@ -68,7 +69,7 @@ echo "Waiting for API, PostgreSQL and Keycloak..."
 wait_for "API" 60 curl --fail --silent --output /dev/null "http://127.0.0.1:${HTTP_PORT}/api/health/ready"
 wait_for "Keycloak" 120 keycloak_healthy
 wait_for "Keycloak realm" 60 curl --fail --silent --output /dev/null \
-  "http://127.0.0.1:${KEYCLOAK_PORT}/realms/kuechenfuchs/.well-known/openid-configuration"
+  "http://127.0.0.1:${HTTP_PORT}/auth/realms/kuechenfuchs/.well-known/openid-configuration"
 
 echo "Checking network exposure..."
 for service in db keycloak-db api; do
@@ -78,7 +79,7 @@ for service in db keycloak-db api; do
   fi
 done
 keycloak_binding="$(compose port keycloak 8080)"
-[[ "$keycloak_binding" == "127.0.0.1:${KEYCLOAK_PORT}" ]] || fail "Keycloak must be bound to loopback only, got $keycloak_binding."
+[[ "$keycloak_binding" == "127.0.0.1:${KEYCLOAK_ADMIN_PORT}" ]] || fail "Keycloak must be bound to loopback only, got $keycloak_binding."
 api_networks="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' "$(compose ps --quiet api)")"
 if grep --quiet 'keycloak-backend' <<< "$api_networks"; then
   fail "API must not reach the Keycloak database network."

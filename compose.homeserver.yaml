@@ -1,0 +1,85 @@
+# Heimserver-Betrieb (Production) – vorbereitet, aber erst nach Freigabe zu verwenden.
+#   docker compose -f compose.yaml -f compose.keycloak.yaml -f compose.homeserver.yaml up --build --detach
+# Öffentlich ist ausschließlich der bestehende Caddy des Heimservers (TLS, Port 443); er leitet an
+# 127.0.0.1:${HTTP_PORT} weiter. API, Keycloak und beide Datenbanken haben keine öffentlichen Ports.
+# Alle Werte kommen aus der lokalen, nicht versionierten .env (siehe docs/homeserver-setup.md).
+name: kuechenfuchs
+
+services:
+  db:
+    restart: unless-stopped
+
+  migrate:
+    image: kuechenfuchs/api:local
+    build:
+      context: ./backend/Kuechenfuchs.Api
+      dockerfile: Dockerfile
+    command: ["--migrate"]
+    restart: "no"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Host: db
+      Database__Port: 5432
+      Database__Name: ${POSTGRES_DB:-kuechenfuchs}
+      Database__User: ${POSTGRES_USER:-kuechenfuchs}
+      Database__Password: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein}
+      Database__GssEncryptionMode: Disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  api:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # TLS endet am Heimserver-Caddy; nur X-Forwarded-Proto/-For aus privaten Netzen auswerten.
+      ReverseProxy__TrustForwardedHeaders: "true"
+      ReverseProxy__KnownProxies: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10}
+      Keycloak__Issuer: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein (z. B. https://kuechenfuchs.zaddach.org)}/auth/realms/kuechenfuchs
+      Keycloak__LinkRedirectUri: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/api/v1/integrations/keycloak/callback
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  bootstrap:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+  caddy:
+    restart: unless-stopped
+    environment:
+      # Nur der Heimserver-Caddy (konkrete Absenderadresse, z. B. Gateway des ingress-Netzes) darf
+      # X-Forwarded-* an den Küchenfuchs-Caddy liefern. Siehe docs/homeserver-setup.md, Abschnitt 4.
+      KF_TRUSTED_PROXIES: ${KUECHENFUCHS_EDGE_PROXY_ADDRESSES:?KUECHENFUCHS_EDGE_PROXY_ADDRESSES muss gesetzt sein (z. B. 172.31.241.1/32)}
+    networks:
+      backend:
+        # Feste Adresse: nur dieser Proxy darf API und Keycloak X-Forwarded-* liefern.
+        ipv4_address: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10}
+      ingress:
+        # Keycloak teilt auch das ingress-Netz mit diesem Caddy; daher auch hier eine feste Adresse.
+        ipv4_address: ${KUECHENFUCHS_PROXY_INGRESS_IP:-172.31.241.10}
+
+  keycloak-db:
+    restart: unless-stopped
+
+  keycloak:
+    restart: unless-stopped
+    environment:
+      KC_HOSTNAME: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/auth
+      # Keycloak wird nur vom Küchenfuchs-Caddy angesprochen; nur dessen X-Forwarded-* gelten.
+      KC_PROXY_TRUSTED_ADDRESSES: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10},${KUECHENFUCHS_PROXY_INGRESS_IP:-172.31.241.10}
+      KC_LINK_REDIRECT_URI: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/api/v1/integrations/keycloak/callback
+
+networks:
+  # Feste, konfigurierbare Subnetze, damit vertrauenswürdige Proxy-Adressen konkret benannt werden können.
+  # Vor der Einrichtung prüfen, dass sie nicht mit bestehenden Netzen kollidieren: docker network inspect … / ip route
+  backend:
+    ipam:
+      config:
+        - subnet: ${KUECHENFUCHS_BACKEND_SUBNET:-172.31.240.0/24}
+  ingress:
+    ipam:
+      config:
+        - subnet: ${KUECHENFUCHS_INGRESS_SUBNET:-172.31.241.0/24}

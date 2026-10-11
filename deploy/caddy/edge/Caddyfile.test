@@ -1,0 +1,12 @@
+# Nur für automatisierte Tests: simuliert den öffentlichen Heimserver-Caddy mit lokaler Test-CA.
+{
+	admin off
+	auto_https disable_redirects
+}
+
+import /etc/caddy/kuechenfuchs.caddy
+
+https://localhost:{$EDGE_HTTPS_PORT} {
+	tls internal
+	import kuechenfuchs_edge caddy:80
+}

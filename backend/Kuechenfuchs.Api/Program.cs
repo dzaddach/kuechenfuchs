@@ -4,10 +4,12 @@ using System.Threading.RateLimiting;
 using Kuechenfuchs.Api.Ai;
 using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.ExternalIdentity;
+using Kuechenfuchs.Api.Hosting;
 using Kuechenfuchs.Api.Identity;
 using Kuechenfuchs.Api.Recipes;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +39,9 @@ if (args.Contains("--healthcheck", StringComparer.Ordinal))
 }
 
 var builder = WebApplication.CreateBuilder(args);
+// Die Request-Protokollierung von ASP.NET schreibt vollständige URLs inklusive Query (z. B. OAuth-"code"
+// und "state" im Keycloak-Callback). Diese Einträge dürfen nie in normalen Logs landen.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 var databaseSettings = builder.Configuration.GetSection("Database");
 var connectionString = new NpgsqlConnectionStringBuilder
 {
@@ -122,6 +127,17 @@ if (!string.IsNullOrWhiteSpace(dataProtectionPath))
     builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath));
 }
 
+// Hinter TLS-terminierenden Proxys (Heimserver: Edge-Caddy -> Küchenfuchs-Caddy -> API) nur Schema und
+// Client-IP vom ausdrücklich konfigurierten, kontrollierten Proxy übernehmen; Host-Header nie.
+var reverseProxySettings = builder.Configuration.GetSection(ReverseProxySettings.SectionName).Get<ReverseProxySettings>()
+    ?? new ReverseProxySettings();
+var trustForwardedHeaders = reverseProxySettings.TrustForwardedHeaders;
+if (trustForwardedHeaders)
+{
+    reverseProxySettings.Apply(new ForwardedHeadersOptions());
+    builder.Services.Configure<ForwardedHeadersOptions>(reverseProxySettings.Apply);
+}
+
 builder.Services.AddAuthorization();
 var keycloakEnabled = builder.AddKeycloakIntegration();
 builder.Services.AddRateLimiter(options =>
@@ -166,6 +182,13 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+if (args.Contains("--migrate", StringComparer.Ordinal))
+{
+    // Kontrollierter, einmaliger Migrationsschritt für Production (z. B. Compose-Dienst "migrate").
+    await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: true);
+    return;
+}
+
 if (args.Contains("--bootstrap-admin", StringComparer.Ordinal))
 {
     await DatabaseBootstrapper.InitializeAsync(
@@ -180,6 +203,11 @@ if (app.Environment.IsDevelopment())
 {
     await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: true);
     app.MapOpenApi("/api/openapi/{documentName}.json");
+}
+
+if (trustForwardedHeaders)
+{
+    app.UseForwardedHeaders();
 }
 
 app.UseAuthentication();

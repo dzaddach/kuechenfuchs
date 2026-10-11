@@ -1,4 +1,4 @@
-name: P0 smoke, P4 and P5a.1 integration tests
+name: P0 smoke, P4 and P5a integration tests
 
 on:
   push:
@@ -23,3 +23,5 @@ jobs:
         run: bash scripts/test-p4-ai-recipes.sh
       - name: Test P5a.1 Keycloak linking and bearer authentication
         run: bash scripts/test-p5a-keycloak.sh
+      - name: Test P5a.2 ChatGPT OAuth behind a simulated HTTPS edge
+        run: bash scripts/test-p5a2-chatgpt-oauth.sh

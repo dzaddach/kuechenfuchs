@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Kuechenfuchs.Api/Kuechenfuchs.Api.csproj" />
   </ItemGroup>
 </Project>

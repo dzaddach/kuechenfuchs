@@ -41,7 +41,7 @@ public static class ChatGptBearer
         var check = KeycloakTokenValidation.CheckAccessToken(token, options);
         if (!check.Succeeded)
         {
-            logger.LogInformation("Bearer token rejected: {Reason}.", check.Failure);
+            logger.LogInformation(ExternalIdentityEvents.BearerRejected, "Bearer token rejected: {Reason}.", check.Failure);
             context.Fail("Token rejected.");
             return;
         }
@@ -62,21 +62,21 @@ public static class ChatGptBearer
             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
         if (link is null)
         {
-            logger.LogInformation("Bearer token rejected: no active external identity link.");
+            logger.LogInformation(ExternalIdentityEvents.BearerRejected, "Bearer token rejected: no active external identity link.");
             context.Fail("Token rejected.");
             return;
         }
 
         if (!KeycloakTokenValidation.IsIssuedForLink(check.IssuedAt, link.TokensNotBefore))
         {
-            logger.LogInformation("Bearer token rejected: issued before external identity link {LinkId}.", link.Id);
+            logger.LogInformation(ExternalIdentityEvents.BearerRejected, "Bearer token rejected: issued before external identity link {LinkId}.", link.Id);
             context.Fail("Token rejected.");
             return;
         }
 
         if (!link.IsEnabled || link.LockoutEnd > DateTimeOffset.UtcNow)
         {
-            logger.LogInformation("Bearer token rejected: user {UserId} is blocked.", link.UserId);
+            logger.LogInformation(ExternalIdentityEvents.BearerRejected, "Bearer token rejected: user {UserId} is blocked.", link.UserId);
             context.Fail("Token rejected.");
             return;
         }
@@ -95,18 +95,34 @@ public static class ChatGptBearer
     }
 
     /// <summary>
-    /// Binds every bearer request to the single household chosen during linking and re-checks the current
-    /// membership. Foreign, unbound or no longer accessible households are hidden with 404.
+    /// Per linked identity rate limit, then binding of every bearer request to the single household chosen
+    /// during linking with a fresh membership check. Foreign, unbound or no longer accessible households are
+    /// hidden with 404. Successful requests update a coarse last-access timestamp (server-side usage evidence).
     /// </summary>
     public static RouteGroupBuilder RequireBoundHousehold(this RouteGroupBuilder group) =>
         group.AddEndpointFilter(async (invocationContext, next) =>
         {
             var context = invocationContext.HttpContext;
             var user = context.User;
+            if (!Guid.TryParse(user.FindFirstValue(LinkClaim), out var linkId)
+                || !Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            {
+                return Results.NotFound();
+            }
+
+            using var lease = context.RequestServices.GetRequiredService<ChatGptBearerRateLimiter>().AttemptAcquire(linkId);
+            if (!lease.IsAcquired)
+            {
+                context.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger(typeof(ChatGptBearer).FullName!)
+                    .LogWarning(ExternalIdentityEvents.BearerRateLimited, "Bearer rate limit reached for link {LinkId}.", linkId);
+                context.Response.Headers.RetryAfter = "60";
+                return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Request rate limit reached");
+            }
+
             if (!Guid.TryParse(context.Request.RouteValues["householdId"]?.ToString(), out var householdId)
                 || !Guid.TryParse(user.FindFirstValue(HouseholdClaim), out var boundHouseholdId)
-                || boundHouseholdId != householdId
-                || !Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+                || boundHouseholdId != householdId)
             {
                 return Results.NotFound();
             }
@@ -115,6 +131,36 @@ public static class ChatGptBearer
             var isMember = await database.HouseholdMembers.AnyAsync(
                 member => member.HouseholdId == householdId && member.UserId == userId,
                 context.RequestAborted);
-            return isMember ? await next(invocationContext) : Results.NotFound();
+            if (!isMember)
+            {
+                return Results.NotFound();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var staleBefore = now.AddMinutes(-1);
+            await database.ExternalIdentityLinks
+                .Where(link => link.Id == linkId && (link.LastBearerAccessAt == null || link.LastBearerAccessAt < staleBefore))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(link => link.LastBearerAccessAt, now), context.RequestAborted);
+            return await next(invocationContext);
         });
+}
+
+/// <summary>Fixed-window limiter per linked identity for bearer endpoints (runs after authentication).</summary>
+public sealed class ChatGptBearerRateLimiter(IOptions<KeycloakOptions> options) : IDisposable
+{
+    private readonly System.Threading.RateLimiting.PartitionedRateLimiter<Guid> _limiter =
+        System.Threading.RateLimiting.PartitionedRateLimiter.Create<Guid, Guid>(linkId =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                linkId,
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = options.Value.BearerRequestsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                }));
+
+    public System.Threading.RateLimiting.RateLimitLease AttemptAcquire(Guid linkId) => _limiter.AttemptAcquire(linkId);
+
+    public void Dispose() => _limiter.Dispose();
 }

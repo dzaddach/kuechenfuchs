@@ -44,6 +44,8 @@ public static class KeycloakIntegration
                     RequireHttps = options.RequireHttpsMetadata,
                 }));
         builder.Services.AddScoped<KeycloakOidcClient>();
+        builder.Services.AddSingleton<KeycloakAdminClient>();
+        builder.Services.AddSingleton<ChatGptBearerRateLimiter>();
         builder.Services.AddScoped<ExternalIdentityLinkService>();
 
         builder.Services.AddAuthentication()
@@ -194,7 +196,7 @@ public static class KeycloakIntegration
         });
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["Referrer-Policy"] = "no-referrer";
-        return Results.Redirect($"/?keycloakLink={StatusParameter(status)}");
+        return Results.Redirect($"/settings/chatgpt?keycloakLink={StatusParameter(status)}");
     }
 
     private static async Task<IResult> ListLinksAsync(
@@ -230,8 +232,10 @@ public static class KeycloakIntegration
             return Results.Unauthorized();
         }
 
-        return await linkService.RevokeAsync(userId, linkId, cancellationToken)
-            ? Results.NoContent()
+        var result = await linkService.RevokeAsync(userId, linkId, cancellationToken);
+        context.Response.Headers.CacheControl = "no-store";
+        return result.Found
+            ? Results.Ok(new { revoked = true, providerSessionsEnded = result.ProviderSessionsEnded })
             : Results.NotFound();
     }
 
@@ -241,6 +245,7 @@ public static class KeycloakIntegration
         LinkCompletionStatus.Conflict => "conflict",
         LinkCompletionStatus.Expired => "expired",
         LinkCompletionStatus.Cancelled => "cancelled",
+        LinkCompletionStatus.ProviderUnavailable => "unavailable",
         _ => "failed",
     };
 

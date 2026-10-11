@@ -1,0 +1,11 @@
+# Beispiel für die bestehende Caddy-Konfiguration des Heimservers – NICHT automatisch angewendet.
+# Nur diesen Site-Block (und den import) ergänzen; bestehende Sites wie punktlandung.zaddach.org
+# bleiben unverändert. Caddy holt das Zertifikat automatisch per ACME (Port 80/443 erforderlich).
+import /etc/caddy/kuechenfuchs.caddy
+
+kuechenfuchs.zaddach.org {
+	# Upstream = HTTP_PORT des Küchenfuchs-Stacks (Loopback). Läuft Caddy selbst in Docker,
+	# stattdessen z. B. host.docker.internal:8081 oder ein gemeinsames externes Netzwerk verwenden
+	# (siehe docs/homeserver-setup.md, Abschnitt 4).
+	import kuechenfuchs_edge 127.0.0.1:8081
+}

@@ -23,6 +23,12 @@ public sealed class ExternalIdentityLink
 
     public DateTimeOffset? RevokedAt { get; set; }
     public string? RevokedReason { get; set; }
+
+    /// <summary>When all Keycloak sessions (and thus refresh tokens) of this identity were ended after revocation.</summary>
+    public DateTimeOffset? ProviderSessionsRevokedAt { get; set; }
+
+    /// <summary>Last successful bearer request (coarse, at most one update per minute); server-side evidence of use.</summary>
+    public DateTimeOffset? LastBearerAccessAt { get; set; }
 }
 
 /// <summary>

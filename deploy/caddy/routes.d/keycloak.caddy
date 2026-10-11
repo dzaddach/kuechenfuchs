@@ -1,0 +1,12 @@
+# Nur mit compose.keycloak.yaml eingebunden (Mount nach /etc/caddy/routes.d/).
+# Öffentlich nötig sind ausschließlich der Küchenfuchs-Realm und statische Ressourcen
+# (Keycloak-Empfehlung: /realms/ und /resources/ freigeben, /admin/, /realms/master/,
+# /metrics und /health nicht). Alles andere unter /auth bleibt verborgen.
+@keycloak_public path /auth/realms/kuechenfuchs/* /auth/resources/*
+handle @keycloak_public {
+	reverse_proxy keycloak:8080
+}
+
+handle /auth/* {
+	respond 404
+}

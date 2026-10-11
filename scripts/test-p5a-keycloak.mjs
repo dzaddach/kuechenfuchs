@@ -1,144 +1,30 @@
 // P5a.1 Keycloak end-to-end checks. Started by scripts/test-p5a-keycloak.sh against an isolated,
 // disposable Compose stack. Uses only synthetic users, households and randomly generated secrets.
 import assert from 'node:assert/strict';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import {
+  Browser, clientUuid as findClientUuid, createChecker, createCompose, createKeycloakUser as createUser,
+  csrfToken as fetchCsrfToken, decodePayload, keycloakLogin, pwaLogin as login, randomValue, s256, sleep,
+} from './lib/p5a-test-support.mjs';
 
 const env = process.env;
 const appBase = `http://localhost:${env.HTTP_PORT}`;
-const keycloakBase = `http://localhost:${env.KEYCLOAK_PORT}`;
+// Keycloak is served by the Küchenfuchs Caddy under the same origin; the admin port is loopback-only.
+const keycloakBase = `${appBase}/auth`;
+const keycloakAdminBase = `http://localhost:${env.KEYCLOAK_ADMIN_PORT}/auth`;
 const realm = 'kuechenfuchs';
 const issuer = `${keycloakBase}/realms/${realm}`;
-const composeArgs = JSON.parse(env.P5A_COMPOSE_ARGS);
 const testRedirectUri = `${appBase}/p5a-test-oauth-callback`;
 const linkRedirectUri = `${appBase}/api/v1/integrations/keycloak/callback`;
+const { compose, sql, kcadm } = createCompose(JSON.parse(env.P5A_COMPOSE_ARGS), env);
+const check = createChecker();
 
-let step = 0;
-function check(label) {
-  step += 1;
-  console.log(`  ok ${String(step).padStart(2, '0')} ${label}`);
-}
-
-function compose(args) {
-  return execFileSync('docker', ['compose', ...composeArgs, ...args], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
-
-function sql(query) {
-  return compose([
-    'exec', '-T', 'db', 'psql', '-v', 'ON_ERROR_STOP=1',
-    '-U', env.POSTGRES_USER, '-d', env.POSTGRES_DB, '-Atc', query,
-  ]).trim();
-}
-
-function kcadm(...args) {
-  return compose(['exec', '-T', 'keycloak', '/opt/keycloak/bin/kcadm.sh', ...args]);
-}
-
-const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 // Tokens are only accepted from the next whole second after linking (+ clock skew, 0 in this test).
 const waitForNewTokenGeneration = () => sleep(2_100);
-const randomValue = () => randomBytes(32).toString('base64url');
-const s256 = (verifier) => createHash('sha256').update(verifier).digest('base64url');
-const randomPassword = () => `Kc-${randomBytes(18).toString('base64url')}9!`;
-
-/** Minimal browser: manual redirects and a host/path cookie jar (ports are ignored, as in browsers). */
-class Browser {
-  #cookies = new Map();
-
-  has(name) {
-    return [...this.#cookies.values()].some((cookie) => cookie.name === name);
-  }
-
-  async request(url, { method = 'GET', headers = {}, json, form, bearer } = {}) {
-    const requestHeaders = { ...headers };
-    const cookie = this.#cookieHeader(url);
-    if (cookie) requestHeaders.Cookie = cookie;
-    if (bearer) requestHeaders.Authorization = `Bearer ${bearer}`;
-    let body;
-    if (json !== undefined) {
-      requestHeaders['Content-Type'] = 'application/json';
-      body = JSON.stringify(json);
-    } else if (form !== undefined) {
-      body = new URLSearchParams(form);
-    }
-
-    const response = await fetch(url, { method, headers: requestHeaders, body, redirect: 'manual' });
-    this.#store(url, response);
-    const text = await response.text();
-    return {
-      status: response.status,
-      location: response.headers.get('location'),
-      headers: response.headers,
-      text,
-      json: () => JSON.parse(text),
-    };
-  }
-
-  #cookieHeader(url) {
-    const { hostname, pathname } = new URL(url);
-    return [...this.#cookies.values()]
-      .filter((cookie) => cookie.host === hostname && pathname.startsWith(cookie.path))
-      .map((cookie) => `${cookie.name}=${cookie.value}`)
-      .join('; ');
-  }
-
-  #store(url, response) {
-    const host = new URL(url).hostname;
-    for (const raw of response.headers.getSetCookie()) {
-      const [pair, ...attributes] = raw.split(';');
-      const separator = pair.indexOf('=');
-      const name = pair.slice(0, separator).trim();
-      const value = pair.slice(separator + 1).trim();
-      let path = '/';
-      let expired = value === '';
-      for (const attribute of attributes) {
-        const [key, attributeValue = ''] = attribute.trim().split('=');
-        const normalized = key.toLowerCase();
-        if (normalized === 'path') path = attributeValue || '/';
-        if (normalized === 'max-age' && Number(attributeValue) <= 0) expired = true;
-        if (normalized === 'expires' && Date.parse(attributeValue) < Date.now()) expired = true;
-      }
-
-      const id = `${host}|${name}|${path}`;
-      if (expired) this.#cookies.delete(id);
-      else this.#cookies.set(id, { host, name, value, path });
-    }
-  }
-}
-
-async function pwaLogin(browser, email, password) {
-  let response = await browser.request(`${appBase}/api/auth/csrf`);
-  assert.equal(response.status, 200);
-  response = await browser.request(`${appBase}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'X-KF-CSRF': response.json().requestToken },
-    json: { email, password },
-  });
-  assert.equal(response.status, 200, `PWA login failed: ${response.text}`);
-  return csrfToken(browser);
-}
-
-async function csrfToken(browser) {
-  const response = await browser.request(`${appBase}/api/auth/csrf`);
-  assert.equal(response.status, 200);
-  return response.json().requestToken;
-}
-
-/** Performs the Keycloak login form and returns the redirect (with code/state) to the client. */
-async function keycloakLogin(browser, authorizationUrl, username, password) {
-  const page = await browser.request(authorizationUrl);
-  assert.equal(page.status, 200, `Keycloak login page not shown: ${page.status}`);
-  const match = page.text.match(/<form id="kc-form-login"[^>]*action="([^"]+)"/);
-  assert.ok(match, 'Keycloak login form not found');
-  const action = match[1].replaceAll('&amp;', '&');
-  const response = await browser.request(action, { method: 'POST', form: { username, password, credentialId: '' } });
-  assert.equal(response.status, 302,
-    `Keycloak login did not redirect (HTTP ${response.status}): ${response.text.replace(/\s+/g, ' ').match(/<title>.*?<\/title>|kc-feedback-text">[^<]*|alert-error[^<]*<[^<]*/g)}`);
-  return response.location;
-}
+const pwaLogin = (browser, email, password) => login(browser, appBase, email, password);
+const csrfToken = (browser) => fetchCsrfToken(browser, appBase);
+const createKeycloakUser = (realmName, username, email) => createUser(kcadm, realmName, username, email);
+const clientUuid = (realmName, clientId) => findClientUuid(kcadm, realmName, clientId);
 
 async function startLink(browser, csrf, householdId) {
   return browser.request(`${appBase}/api/v1/integrations/keycloak/link-requests`, {
@@ -170,7 +56,9 @@ async function followCallback(browser, callbackUrl) {
   const response = await browser.request(callbackUrl);
   assert.equal(response.status, 302);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  return new URL(response.location, appBase).searchParams.get('keycloakLink');
+  const target = new URL(response.location, appBase);
+  assert.equal(target.pathname, '/settings/chatgpt');
+  return target.searchParams.get('keycloakLink');
 }
 
 async function link(browser, csrf, householdId, user) {
@@ -178,11 +66,11 @@ async function link(browser, csrf, householdId, user) {
 }
 
 /** Authorization code + PKCE for a confidential client; returns the raw token response. */
-async function clientTokens({ realmName = realm, clientId, clientSecret, redirectUri, scope, user }) {
+async function clientTokens({ realmName = realm, baseUrl = keycloakBase, clientId, clientSecret, redirectUri, scope, user }) {
   const browser = new Browser();
   const verifier = randomValue();
   const state = randomValue();
-  const base = `${keycloakBase}/realms/${realmName}/protocol/openid-connect`;
+  const base = `${baseUrl}/realms/${realmName}/protocol/openid-connect`;
   const authorizationUrl = `${base}/auth?${new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -226,27 +114,9 @@ async function bearerCheck(token, householdId) {
   return response;
 }
 
-function decodePayload(token) {
-  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
-}
-
-function clientUuid(realmName, clientId) {
-  return kcadm('get', 'clients', '-r', realmName, '-q', `clientId=${clientId}`, '--fields', 'id', '--format', 'csv', '--noquotes').trim();
-}
-
-function createKeycloakUser(realmName, username, email) {
-  const password = randomPassword();
-  kcadm('create', 'users', '-r', realmName, '-s', `username=${username}`, '-s', 'enabled=true',
-    '-s', `email=${email}`, '-s', 'emailVerified=true', '-s', 'firstName=P5a', '-s', 'lastName=Test');
-  kcadm('set-password', '-r', realmName, '--username', username, '--new-password', password);
-  const id = kcadm('get', 'users', '-r', realmName, '-q', `username=${username}`, '-q', 'exact=true',
-    '--fields', 'id', '--format', 'csv', '--noquotes').trim();
-  return { username, password, id };
-}
-
 async function main() {
   console.log('Configuring synthetic Keycloak test users and a test-only redirect URI...');
-  kcadm('config', 'credentials', '--server', 'http://localhost:8080', '--realm', 'master',
+  kcadm('config', 'credentials', '--server', 'http://localhost:8080/auth', '--realm', 'master',
     '--user', env.KEYCLOAK_ADMIN_USERNAME, '--password', env.KEYCLOAK_ADMIN_PASSWORD);
   const chatGptClient = clientUuid(realm, 'chatgpt-actions');
   kcadm('update', `clients/${chatGptClient}`, '-r', realm, '-s', `redirectUris=["${testRedirectUri}"]`);
@@ -389,7 +259,9 @@ async function main() {
   check('token with wrong audience (linking client) is rejected (401)');
 
   const foreignRealm = 'p5a-foreign';
-  kcadm('create', 'realms', '-s', `realm=${foreignRealm}`, '-s', 'enabled=true');
+  // A second realm is not routed through Caddy; it gets its own frontend URL on the loopback admin port.
+  kcadm('create', 'realms', '-s', `realm=${foreignRealm}`, '-s', 'enabled=true',
+    '-s', `attributes.frontendUrl=${keycloakAdminBase}`);
   const foreignSecret = randomValue();
   kcadm('create', 'clients', '-r', foreignRealm, '-s', 'clientId=chatgpt-actions', '-s', 'enabled=true',
     '-s', 'publicClient=false', '-s', `secret=${foreignSecret}`, '-s', 'standardFlowEnabled=true',
@@ -398,11 +270,12 @@ async function main() {
     '-s', 'name=audience', '-s', 'protocol=openid-connect', '-s', 'protocolMapper=oidc-audience-mapper',
     '-s', 'config."included.custom.audience"=kuechenfuchs-api', '-s', 'config."access.token.claim"=true');
   const foreignUser = createKeycloakUser(foreignRealm, 'p5a-alice', 'p5a-alice@example.test');
-  const foreignIssuer = `${keycloakBase}/realms/${foreignRealm}`;
+  const foreignIssuer = `${keycloakAdminBase}/realms/${foreignRealm}`;
   // Even an (inadmissible) link row for the foreign issuer must not make its tokens acceptable.
   sql(`INSERT INTO "ExternalIdentityLinks" ("Id","Issuer","Subject","UserId","HouseholdId","CreatedAt") VALUES ('${randomUUID()}','${foreignIssuer}','${foreignUser.id}','${userId}','${homeId}',now())`);
   const foreignTokens = await clientTokens({
     realmName: foreignRealm,
+    baseUrl: keycloakAdminBase,
     clientId: 'chatgpt-actions',
     clientSecret: foreignSecret,
     redirectUri: testRedirectUri,
@@ -456,7 +329,8 @@ async function main() {
   response = await pwa.request(`${appBase}/api/v1/integrations/keycloak/links/${linkId}`, {
     method: 'DELETE', headers: { 'X-KF-CSRF': csrf },
   });
-  assert.equal(response.status, 204);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json(), { revoked: true, providerSessionsEnded: true });
   // Re-linking scenario: (1) token works, (2) revoked, (3) re-linked, (4) old token stays invalid,
   // (5) new token works for the newly chosen household only.
   assert.equal((await bearerCheck(accessToken, homeId)).status, 401);
@@ -511,9 +385,10 @@ async function main() {
   for (const secret of [accessToken, aliceTokens.id_token, env.KEYCLOAK_LINK_CLIENT_SECRET, alice.password]) {
     assert.ok(!logs.includes(secret), 'API logs must not contain tokens or secrets');
   }
+  assert.ok(!/[?&]code=[A-Za-z0-9.-]{20,}/.test(logs), 'API logs must not contain authorization codes');
   check('API logs contain no tokens, client secrets or passwords');
 
-  console.log(`P5a Keycloak integration checks passed (${step} checks).`);
+  console.log(`P5a Keycloak integration checks passed (${check.count()} checks).`);
 }
 
 main().catch((error) => {

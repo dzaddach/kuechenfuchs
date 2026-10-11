@@ -2,45 +2,49 @@
 
 **Stand:** 11. Oktober 2026 · **Status:** Betriebszielbild; keine Ressourcen werden mit diesem Dokument gestartet oder provisioniert
 
-## Lokale Keycloak-Testumgebung (P5a.1)
+## Keycloak und ChatGPT-OAuth (P5a.1/P5a.2)
 
-Keycloak ist als OAuth-/OIDC-Provider entschieden. P5a.1 stellt ihn ausschließlich lokal bereit; es gibt weder öffentliche Domain noch ChatGPT-Redirects.
+Keycloak ist der OAuth-/OIDC-Provider. Seit P5a.2 läuft er unter `/auth` derselben Origin wie Küchenfuchs: Der Küchenfuchs-Caddy leitet ausschließlich `/auth/realms/kuechenfuchs/*` und `/auth/resources/*` an Keycloak weiter (`deploy/caddy/routes.d/keycloak.caddy`), alles andere unter `/auth` beantwortet er mit `404`. Die Schritt-für-Schritt-Anleitung für den Heimserver steht in [homeserver-setup.md](./homeserver-setup.md).
 
 ```sh
-# .env zusätzlich befüllen (alle Werte lokal erzeugen, z. B. openssl rand -base64 32):
+# Lokal: .env zusätzlich befüllen (Werte lokal erzeugen, siehe .env.example):
 # KEYCLOAK_DB_PASSWORD, KEYCLOAK_ADMIN_PASSWORD, KEYCLOAK_LINK_CLIENT_SECRET,
-# KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET; optional KEYCLOAK_PORT (Standard 8180).
+# KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET, KEYCLOAK_API_ADMIN_CLIENT_SECRET.
 docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach
-# Keycloak-Admin-Konsole (nur lokal): http://localhost:8180/admin
+# Keycloak über Küchenfuchs: http://localhost:${HTTP_PORT}/auth/realms/kuechenfuchs/...
+# Admin-Konsole (nur Loopback): http://localhost:${KEYCLOAK_ADMIN_PORT:-8180}/auth/admin/
+
+# Heimserver (Production, erst nach Freigabe):
+docker compose -f compose.yaml -f compose.keycloak.yaml -f compose.homeserver.yaml up --build --detach
 ```
 
 | Dienst | Netz | Host-Port | Persistenz |
 |---|---|---|---|
-| `keycloak` | `keycloak-backend`, `backend`, `ingress` | nur `127.0.0.1:${KEYCLOAK_PORT}` | in `keycloak-db` |
-| `keycloak-db` (PostgreSQL 17) | nur `keycloak-backend` (intern) | keiner | Volume `keycloak_postgres_data` |
+| `caddy` (Küchenfuchs-Web) | `backend`, `ingress` | `${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT}` – Upstream des Heimserver-Caddys | – |
+| `keycloak` | `keycloak-backend`, `backend`, `ingress` | nur `127.0.0.1:${KEYCLOAK_ADMIN_PORT}` (Admin-Konsole/SSH-Tunnel) | in `keycloak-db` |
+| `keycloak-db` (PostgreSQL 17.11) | nur `keycloak-backend` (intern) | keiner | Volume `keycloak_postgres_data` |
 | `api` | `backend` (erreicht Keycloak, nicht `keycloak-db`) | keiner | unverändert |
+| `migrate` (nur `compose.homeserver.yaml`) | `backend` | keiner | führt `--migrate` einmalig aus; die API startet erst danach |
 
-- **Version:** `deploy/keycloak/Dockerfile` pinnt `quay.io/keycloak/keycloak:26.7.5` per Digest (Tag-Liste von quay.io am 11.10.2026 geprüft; 26.8.0 vom 10.10.2026 bewusst noch nicht übernommen). Das Image wird mit `kc.sh build` (PostgreSQL, Health) vorab optimiert und mit `start --optimized --import-realm` gestartet.
-- **Issuer/Hostname:** `KC_HOSTNAME=http://localhost:${KEYCLOAK_PORT}` legt den Issuer fest; `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` liefert der API intern `http://keycloak:8080` für Token- und JWKS-Endpunkt. Die API vergleicht den Issuer exakt mit `Keycloak__Issuer`.
-- **Secrets:** Keine Defaults für Passwörter oder Client-Secrets; Compose bricht ohne sie ab. Der Realm-Import ersetzt `${KC_LINK_CLIENT_SECRET}`, `${KC_CHATGPT_ACTIONS_CLIENT_SECRET}` und `${KC_LINK_REDIRECT_URI}` aus der Umgebung. Der Import läuft nur, solange der Realm noch nicht existiert; spätere Secret-Rotation erfolgt in Keycloak **und** `.env` gemeinsam (API und Keycloak neu erstellen). Das Bootstrap-Adminkonto wird nur beim ersten Start angelegt; danach ein dauerhaftes Admin-Konto anlegen und das Bootstrap-Konto entfernen.
-- **Backups:** `keycloak-db` getrennt von der Küchenfuchs-Datenbank sichern (`pg_dump -U keycloak keycloak`). Beide Sicherungen gehören zusammen, weil `ExternalIdentityLinks` auf Keycloak-Subjects verweisen; nach Restore nur einer Seite Verknüpfungen prüfen und gegebenenfalls widerrufen.
-- **Keycloak-Update:** Release Notes/Upgrading Guide prüfen, beide Datenbanken sichern, Tag **und** Digest in `deploy/keycloak/Dockerfile` ändern, `docker compose -f compose.yaml -f compose.keycloak.yaml build keycloak`, neu starten und `bash scripts/test-p5a-keycloak.sh` ausführen. Keycloak migriert sein Schema beim Start; ein Downgrade erfordert Restore.
-- **Tests:** `bash scripts/test-p5a-keycloak.sh` startet einen isolierten Stack mit zufälligen Secrets, synthetischen Benutzern und Wegwerf-Volumes und entfernt ihn danach.
+- **Versionen:** Keycloak `26.7.5` (Digest in `deploy/keycloak/Dockerfile`, vorab per `kc.sh build` mit PostgreSQL, Health und `http-relative-path=/auth` optimiert), PostgreSQL `17.11-alpine` und Caddy `2.11.7-alpine` jeweils mit Digest (Stand 11.10.2026).
+- **Issuer/Hostname:** `KC_HOSTNAME=${KUECHENFUCHS_PUBLIC_URL}/auth` (lokal Standard `http://localhost:${HTTP_PORT}/auth`, Heimserver `https://kuechenfuchs.zaddach.org/auth`). Nie aus Request-Headern. `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` liefert der API intern `http://keycloak:8080/auth` für Token-, JWKS- und Admin-Aufrufe. `KC_HOSTNAME_ADMIN` zeigt auf den Loopback-Port. `KC_PROXY_HEADERS=xforwarded` nur von privaten Adressen (`KC_PROXY_TRUSTED_ADDRESSES`).
+- **API hinter TLS-Proxy:** In Production setzt `compose.homeserver.yaml` `ReverseProxy__TrustForwardedHeaders=true` und `ReverseProxy__KnownProxies` auf die feste Adresse des Küchenfuchs-Caddys (`KUECHENFUCHS_PROXY_IP` in einem festen Subnetz). Die API übernimmt `X-Forwarded-Proto`/`-For` nur von diesem Absender und nur eine Weiterleitungsstufe; ohne konfigurierte Adresse oder bei zu breiten Netzen (< /24) startet sie nicht. Keycloak (`KC_PROXY_TRUSTED_ADDRESSES`) vertraut nur den beiden festen Adressen dieses Caddys, der Küchenfuchs-Caddy (`KF_TRUSTED_PROXIES`) nur der konfigurierten Adresse des Heimserver-Caddys (`KUECHENFUCHS_EDGE_PROXY_ADDRESSES`). Ohne diese Kette schlägt die CSRF-Prüfung der `__Host-`-Cookies hinter HTTPS fehl. Lokal (Development) bleibt die Auswertung deaktiviert. HTTP für Discovery/Admin-API ist außerhalb von Development nur für interne Dienstnamen ohne Punkt zulässig.
+- **Secrets:** Keine Defaults; Compose bricht ohne sie ab. Der Realm-Import ersetzt `${KC_LINK_CLIENT_SECRET}`, `${KC_CHATGPT_ACTIONS_CLIENT_SECRET}`, `${KC_API_ADMIN_CLIENT_SECRET}` und `${KC_LINK_REDIRECT_URI}` aus der Umgebung. Der Import läuft nur, solange der Realm noch nicht existiert; spätere Rotation erfolgt in Keycloak **und** `.env` gemeinsam. Das ChatGPT-Secret wird über `scripts/keycloak-chatgpt-client.sh rotate-secret` erneuert und nur im GPT-Editor hinterlegt.
+- **Service-Account `kuechenfuchs-api-admin`:** nur `view-users`/`manage-users` im Realm `kuechenfuchs`, damit die API Keycloak-Sitzungen beim Verknüpfen und Trennen beenden und den ChatGPT-Sitzungsstatus lesen kann. Admin-REST-API nur intern; über die öffentliche Origin `404`.
+- **Logs:** ASP.NET-Request-Logs mit vollständigen URLs sind unterdrückt (`Microsoft.AspNetCore.Hosting.Diagnostics` ab Warning), damit `code`/`state` nicht protokolliert werden. Sicherheitsereignisse haben Event-IDs 5101–5107 (Verknüpfung erstellt/abgelehnt/widerrufen, Keycloak-Sitzungen beendet/fehlgeschlagen, Bearer abgelehnt/Rate-Limit).
+- **Backups/Updates:** siehe [homeserver-setup.md](./homeserver-setup.md#15-backup-wiederherstellung-und-updates).
+- **Tests:** `bash scripts/test-p5a-keycloak.sh` (Development-Topologie, Verknüpfung und Bearer-Regeln) und `bash scripts/test-p5a2-chatgpt-oauth.sh` (Production-API hinter simuliertem Heimserver-Caddy mit HTTPS über lokale Test-CA, `compose.p5a2-test.yaml`). Beide verwenden eigene Projektnamen, Wegwerf-Volumes, zufällige Secrets und synthetische Daten.
 
-### P5a.1-Prüfergebnis (11. Oktober 2026)
+### P5a.2-Prüfergebnis (11. Oktober 2026)
 
 | Prüfung | Ergebnis |
 |---|---|
 | API Release-Build | Bestanden, 0 Warnungen / 0 Fehler |
-| Backend-Unit-Tests | Bestanden, 41 Tests (davon 22 neu: Token-Generation/`iat`, Issuer, Audience, Ablauf, fremde/manipulierte/fehlende Signatur, HS256, ID-Token, Client, Subject, Nonce, PKCE, Optionen) |
-| `scripts/test-p5a-keycloak.sh` | Bestanden, 37 Prüfungen gegen echtes Keycloak 26.7.5 und PostgreSQL: Verknüpfung, alte Tokens bleiben nach Widerruf und Neuverknüpfung ungültig, manipulierte/wiederverwendete/abgelaufene/fremde-Browser-Anfragen, Konflikte, keine E-Mail-Zuordnung, unbekannte Identität, falscher Issuer/Audience, abgelaufener/manipulierter Token, ID-Token, fehlender Scope, fremder/zweiter Haushalt, entfernte Mitgliedschaft, deaktivierter/gesperrter Benutzer, Widerruf, Neuverknüpfung, Persistenz nach Neuerstellung, Netzwerkexposition, PWA-Login/Logout, keine Secrets in Logs |
-| P0–P4-Regression | Bestanden (P0 wegen belegtem Standardport mit `HTTP_PORT=54394`) |
-
-## ChatGPT Actions OAuth (P5a.2, geplant)
-
-Die lokale Entwicklungs-URL (`http://localhost:8080`) ist nicht für ChatGPT Actions geeignet. Vor einem Actions-Ende-zu-Ende-Test ist separat eine vom Auftraggeber freigegebene öffentliche Testdomain mit gültigem Zertifikat, TLS 1.2+ und Port 443 erforderlich. OAuth-Discovery, Authorization-/Token-Endpunkte und Action-API müssen gemäß den aktuellen OpenAI-Vorgaben unter derselben Origin bereitgestellt werden; Caddy wäre der einzige öffentliche Dienst. PostgreSQL, API und ein gegebenenfalls gewählter Keycloak-Dienst bleiben intern. Testdaten und Zugangsdaten sind isoliert von Produktion. Es werden keine Tunnel, Provider-Container oder öffentlichen Endpunkte durch diese Dokumentation gestartet.
-
-Für Keycloak müssen in P5a.2 Same-Origin-Pfad-Routing über Caddy, externer HTTPS-Issuer (`KC_HOSTNAME`), vertrauenswürdige Proxy-Header und eine nicht öffentliche Admin-Konsole exakt getestet werden. Zertifikats-/DNS-Freigabe, OAuth-Secrets und Redirect-Registrierung gehören zu einem späteren, ausdrücklich freigegebenen P5a-Betriebsschritt; Einzelheiten: [P5a OAuth-Konzept](./chatgpt-actions-oauth.md).
+| Backend-Unit-Tests | Bestanden, 62 Tests (u. a. gefälschte `X-Forwarded-*` von nicht vertrauenswürdigen Absendern, `lastAccess` in Millisekunden) |
+| Angular-Tests / Produktionsbuild | Bestanden, 26 Tests (10 neu für die ChatGPT-Verbindungsseite); Build ohne Warnungen |
+| `scripts/test-p5a-keycloak.sh` | Bestanden, 37 Prüfungen (inzwischen über `/auth` derselben Origin) |
+| `scripts/test-p5a2-chatgpt-oauth.sh` | Bestanden, 26 Prüfungen plus Shell-Prüfung gefälschter `X-Forwarded-*` aus dem internen Netz direkt an API und Küchenfuchs-Caddy: HTTPS-Discovery/Same-Origin, gesperrte Admin-Pfade, Production-Cookies, Redirect-URI-Validierung, Code-Flow mit `client_secret_post` und `client_secret_basic`, falsches Secret, Code-Wiederverwendung, PKCE optional/erzwungen, unbekannte Scopes/`offline_access`, Verknüpfung, ChatGPT-Status, Refresh-Rotation, Ablauf, Sperre, Mitgliedschaft, Rate Limit, Trennen inkl. Refresh-Token-Ungültigkeit, Neuverknüpfung, Logs ohne Tokens/Codes/Secrets |
+| P0–P4-Regression | siehe Pull Request |
 
 ## Lokale Entwicklung (P0)
 
