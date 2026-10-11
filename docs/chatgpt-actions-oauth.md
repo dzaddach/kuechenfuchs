@@ -1,7 +1,7 @@
 # Küchenfuchs – P5a OAuth/OIDC-Konzept für ChatGPT Actions
 
 **Stand:** 11. Oktober 2026  
-**Status:** Provider entschieden: **Keycloak** (Auftraggeberentscheidung vom 11.10.2026). P5a.1 (Kontoverknüpfung, Bearer-Prüfung) ist gemergt. P5a.2 (Same-Origin-Betrieb unter `/auth`, Heimserver-Konfiguration, ChatGPT-Client-Vorbereitung, Sitzungswiderruf, PWA-Verwaltung) ist auf `feature/p5a2-chatgpt-oauth` umgesetzt, aber nicht live. DNS/HTTPS auf dem Heimserver, der Live-Test mit einem GPT und P5b sind nicht freigegeben.
+**Status:** Provider entschieden: **Keycloak**. P5a.1 und P5a.2 sind gemergt. P5b (Rezept-Actions, siehe [chatgpt-gpt-setup.md](./chatgpt-gpt-setup.md) und [API-Design](./api-design.md#chatgpt-rezept-actions-p5b-umgesetzt)) ist auf `feature/p5b-chatgpt-recipes` umgesetzt. Nicht live: DNS/HTTPS auf dem Heimserver und der öffentliche OAuth-Ende-zu-Ende-Test mit einem echten GPT sind der ausstehende Abnahmeschritt.
 
 ## Ziel und Abgrenzung
 

@@ -69,7 +69,11 @@ public static class KeycloakIntegration
             .AddPolicy(ChatGptBearer.RecipesReadPolicy, policy => policy
                 .AddAuthenticationSchemes(ChatGptBearer.Scheme)
                 .RequireAuthenticatedUser()
-                .RequireClaim(ChatGptBearer.ScopeClaim, ChatGptBearer.RecipesReadScope));
+                .RequireClaim(ChatGptBearer.ScopeClaim, ChatGptBearer.RecipesReadScope))
+            .AddPolicy(ChatGptBearer.RecipesWritePolicy, policy => policy
+                .AddAuthenticationSchemes(ChatGptBearer.Scheme)
+                .RequireAuthenticatedUser()
+                .RequireClaim(ChatGptBearer.ScopeClaim, ChatGptBearer.RecipesWriteScope));
         return true;
     }
 

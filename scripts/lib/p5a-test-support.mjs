@@ -145,3 +145,42 @@ export function createKeycloakUser(kcadm, realmName, username, email) {
 export function clientUuid(kcadm, realmName, clientId) {
   return kcadm('get', 'clients', '-r', realmName, '-q', `clientId=${clientId}`, '--fields', 'id', '--format', 'csv', '--noquotes').trim();
 }
+
+/**
+ * Simulated ChatGPT OAuth client (authorization code against the public origin) and Küchenfuchs link
+ * helper for the production-like test stack.
+ */
+export function createChatGptHarness({ origin, clientSecret, redirectUri }) {
+  const oidc = `${origin}/auth/realms/kuechenfuchs/protocol/openid-connect`;
+
+  async function tokens(user, scope = 'openid recipes:read') {
+    const state = randomValue();
+    const params = new URLSearchParams({ response_type: 'code', client_id: 'chatgpt-actions', redirect_uri: redirectUri, scope, state });
+    const location = new URL(await keycloakLogin(new Browser(), `${oidc}/auth?${params}`, user.username, user.password));
+    assert.equal(location.searchParams.get('state'), state);
+    const response = await fetch(`${oidc}/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code', code: location.searchParams.get('code'), redirect_uri: redirectUri,
+        client_id: 'chatgpt-actions', client_secret: clientSecret,
+      }),
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    return body;
+  }
+
+  async function link(pwa, csrf, householdId, user) {
+    const start = await pwa.request(`${origin}/api/v1/integrations/keycloak/link-requests`, {
+      method: 'POST', headers: { 'X-KF-CSRF': csrf }, json: { householdId },
+    });
+    assert.equal(start.status, 200, start.text);
+    const callback = await keycloakLogin(new Browser(), start.json().authorizationUrl, user.username, user.password);
+    const result = await pwa.request(callback);
+    assert.equal(result.status, 302);
+    return new URL(result.location, origin).searchParams.get('keycloakLink');
+  }
+
+  return { tokens, link };
+}

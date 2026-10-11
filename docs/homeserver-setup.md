@@ -202,7 +202,7 @@ Werte für den GPT-Editor („Authentication → OAuth“):
 
 ## 13. Verbindung aus ChatGPT testen ⏳
 
-Es gibt in P5a.2 noch keine Rezept-Actions (P5b). Für den Verbindungstest eine minimale Action mit nur dem Diagnose-Endpunkt verwenden:
+Mit P5b steht die vollständige Rezept-Action bereit: Schema und GPT-Einrichtung in [chatgpt-gpt-setup.md](./chatgpt-gpt-setup.md). Für einen reinen Verbindungstest genügt weiterhin eine minimale Action mit dem Diagnose-Endpunkt:
 
 ```yaml
 openapi: 3.1.0
