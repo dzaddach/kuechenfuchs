@@ -83,8 +83,16 @@ Einbau (⏳), ohne bestehende Konfiguration zu überschreiben:
 4. Upstream je nach Caddy-Betriebsart:
    - Caddy als Systemdienst: `127.0.0.1:<HTTP_PORT>`.
    - Caddy als Container: `127.0.0.1` zeigt auf den Container selbst. Entweder `host.docker.internal:<HTTP_PORT>` (unter Linux mit `extra_hosts: ["host.docker.internal:host-gateway"]` am Caddy-Container; dann `HTTP_BIND_ADDRESS` auf die Docker-Bridge-Adresse, z. B. `172.17.0.1`, setzen – nie `0.0.0.0`) **oder** ein gemeinsames, ausschließlich dafür angelegtes externes Docker-Netzwerk, an das nur Edge-Caddy und `kuechenfuchs-caddy-1` angeschlossen werden. Diese Entscheidung bitte vor der Einrichtung treffen; ich verändere keine Punktlandung-Netze.
-5. Syntax prüfen, dann ohne Unterbrechung neu laden: `caddy validate --config Caddyfile` und `caddy reload --config Caddyfile` (bzw. `docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile`).
-6. Punktlandung danach kurz prüfen (`curl -I https://punktlandung.zaddach.org`).
+5. **Vertrauenswürdige Proxy-Adressen festlegen (Pflicht):** Nur konkret benannte Absender dürfen `X-Forwarded-*` liefern.
+   - Kette: Heimserver-Caddy → Küchenfuchs-Caddy (feste Adressen `KUECHENFUCHS_PROXY_IP`, Standard `172.31.240.10` im Netz `backend`, und `KUECHENFUCHS_PROXY_INGRESS_IP`, Standard `172.31.241.10` im Netz `ingress`) → API/Keycloak. API (`ReverseProxy__KnownProxies`) und Keycloak (`KC_PROXY_TRUSTED_ADDRESSES`) vertrauen ausschließlich diesen Adressen; zu breite Netze (< /24) verweigert die API beim Start.
+   - Der Küchenfuchs-Caddy vertraut nur `KUECHENFUCHS_EDGE_PROXY_ADDRESSES`. Diese Adresse ist der Absender, mit dem der Heimserver-Caddy beim Küchenfuchs-Caddy ankommt:
+     - Systemdienst-Caddy → `127.0.0.1:<HTTP_PORT>`: Docker leitet über das Gateway des `ingress`-Netzes weiter, also `172.31.241.1/32` (bei Standard-Subnetz). ❓ Bitte auf dem Server bestätigen.
+     - Container-Caddy über die Docker-Bridge: Gateway der Bridge, z. B. `172.17.0.1/32`.
+     - Container-Caddy in einem gemeinsamen Netz: dessen feste Adresse in diesem Netz.
+   - Kontrolle nach dem Start: Login in der PWA über `https://kuechenfuchs.zaddach.org` funktioniert (sonst `CSRF validation failed`, siehe Fehlerdiagnose).
+   - Subnetze `KUECHENFUCHS_BACKEND_SUBNET`/`KUECHENFUCHS_INGRESS_SUBNET` vorher auf Kollisionen prüfen (`ip route`, `docker network ls`, `docker network inspect …`).
+6. Syntax prüfen, dann ohne Unterbrechung neu laden: `caddy validate --config Caddyfile` und `caddy reload --config Caddyfile` (bzw. `docker exec <caddy-container> caddy reload --config /etc/caddy/Caddyfile`).
+7. Punktlandung danach kurz prüfen (`curl -I https://punktlandung.zaddach.org`).
 
 ## 5. HTTPS-Zertifikat ⏳
 
@@ -104,7 +112,7 @@ docker compose -f compose.yaml -f compose.keycloak.yaml -f compose.homeserver.ya
 - Projektname `kuechenfuchs` (in `compose.homeserver.yaml` fest), daher eigene Container-, Netzwerk- und Volume-Namen (`kuechenfuchs_…`). Punktlandung bleibt unberührt.
 - ❓ Freien `HTTP_PORT` wählen: `ss -ltnp | grep -E ':(8080|8081|8180|8181)\b'`. 8080 ist auf deinem Mac bereits belegt; auf dem Server vorher prüfen. Ebenso `KEYCLOAK_ADMIN_PORT`.
 - Der Dienst `migrate` führt EF-Core-Migrationen einmalig aus (`--migrate`); die API startet erst nach erfolgreicher Migration und läuft in `Production` (Cookies `__Host-…`, keine OpenAPI-Ausgabe).
-- Die API wertet nur `X-Forwarded-Proto`/`-For` aus privaten Netzen aus (`ReverseProxy__TrustForwardedHeaders`), nie `X-Forwarded-Host`.
+- Die API wertet `X-Forwarded-Proto`/`-For` nur vom Küchenfuchs-Caddy (`ReverseProxy__KnownProxies`, feste Adresse) und nur eine Weiterleitungsstufe aus, nie `X-Forwarded-Host`.
 - Alle Images sind gepinnt (PostgreSQL 17.11, Caddy 2.11.7, Keycloak 26.7.5 jeweils mit Digest).
 - Keine globalen Aufräumbefehle (`docker system prune`, `docker volume prune`) verwenden.
 
@@ -126,6 +134,12 @@ KEYCLOAK_ADMIN_PASSWORD=$(gen)
 KEYCLOAK_LINK_CLIENT_SECRET=$(gen)
 KEYCLOAK_CHATGPT_ACTIONS_CLIENT_SECRET=$(gen)
 KEYCLOAK_API_ADMIN_CLIENT_SECRET=$(gen)
+# Vertrauenswürdige Proxy-Kette (Abschnitt 4, Punkt 5); Subnetze nur bei Kollision ändern.
+KUECHENFUCHS_EDGE_PROXY_ADDRESSES=172.31.241.1/32
+KUECHENFUCHS_BACKEND_SUBNET=172.31.240.0/24
+KUECHENFUCHS_INGRESS_SUBNET=172.31.241.0/24
+KUECHENFUCHS_PROXY_IP=172.31.240.10
+KUECHENFUCHS_PROXY_INGRESS_IP=172.31.241.10
 EOF
 ```
 
@@ -224,7 +238,7 @@ Prüfliste (Interoperabilität – Ergebnisse in `docs/chatgpt-actions-oauth.md`
 | API `404` | Haushalts-ID gehört nicht zum verknüpften Haushalt oder Mitgliedschaft entfernt |
 | API `429` | Rate Limit (Standard 60/min je Verknüpfung, `CHATGPT_BEARER_REQUESTS_PER_MINUTE`) |
 | PWA-Verknüpfung „unavailable“ | API erreicht Keycloak intern nicht oder Service-Account-Secret falsch: `docker compose … logs api keycloak` |
-| Login in der PWA scheitert mit `CSRF validation failed` hinter HTTPS | `ReverseProxy__TrustForwardedHeaders` fehlt oder Edge leitet nicht über private Adresse weiter |
+| Login in der PWA scheitert mit `CSRF validation failed` bzw. HTTP 500 hinter HTTPS | `KUECHENFUCHS_EDGE_PROXY_ADDRESSES` entspricht nicht der tatsächlichen Absenderadresse des Heimserver-Caddys, oder `KUECHENFUCHS_PROXY_IP` passt nicht zu `ReverseProxy__KnownProxies` (Abschnitt 4, Punkt 5) |
 | Zertifikat wird nicht ausgestellt | DNS, Port 80/443, Caddy-Log des Heimservers |
 
 Nützliche Befehle: `docker compose -f compose.yaml -f compose.keycloak.yaml -f compose.homeserver.yaml ps|logs api keycloak caddy`. Logs enthalten keine Tokens, Codes oder Secrets; Request-URLs werden bewusst nicht protokolliert.

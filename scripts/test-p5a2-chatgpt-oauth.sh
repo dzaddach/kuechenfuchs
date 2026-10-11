@@ -11,6 +11,13 @@ export HTTP_PORT="${HTTP_PORT:-54398}"
 export KEYCLOAK_ADMIN_PORT="${KEYCLOAK_ADMIN_PORT:-54399}"
 export EDGE_HTTPS_PORT="${EDGE_HTTPS_PORT:-54443}"
 export KUECHENFUCHS_PUBLIC_URL="https://localhost:${EDGE_HTTPS_PORT}"
+# Eigene, feste Test-Subnetze; nur der simulierte Heimserver-Caddy (edge) und der Küchenfuchs-Caddy sind vertrauenswürdig.
+export KUECHENFUCHS_BACKEND_SUBNET="${KUECHENFUCHS_BACKEND_SUBNET:-172.31.250.0/24}"
+export KUECHENFUCHS_INGRESS_SUBNET="${KUECHENFUCHS_INGRESS_SUBNET:-172.31.251.0/24}"
+export KUECHENFUCHS_PROXY_IP="${KUECHENFUCHS_PROXY_IP:-172.31.250.10}"
+export KUECHENFUCHS_PROXY_INGRESS_IP="${KUECHENFUCHS_PROXY_INGRESS_IP:-172.31.251.10}"
+export P5A2_EDGE_IP="${P5A2_EDGE_IP:-172.31.251.20}"
+export KUECHENFUCHS_EDGE_PROXY_ADDRESSES="${P5A2_EDGE_IP}/32"
 export POSTGRES_DB="${POSTGRES_DB:-kuechenfuchs}"
 export POSTGRES_USER="${POSTGRES_USER:-kuechenfuchs}"
 export POSTGRES_PASSWORD="p5a2-$(openssl rand -hex 16)"
@@ -95,6 +102,20 @@ done
 [[ "$(compose port edge "${EDGE_HTTPS_PORT}")" == "127.0.0.1:${EDGE_HTTPS_PORT}" ]] || fail "Test edge must be loopback-only."
 api_environment="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(compose ps --quiet api)")"
 grep --quiet '^ASPNETCORE_ENVIRONMENT=Production$' <<< "$api_environment" || fail "API must run in Production."
+
+echo "Checking that forged X-Forwarded-* headers from untrusted senders are ignored..."
+curl_image="curlimages/curl:8.10.1@sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b"
+for target in "http://api:8080/api/auth/csrf" "http://caddy:80/api/auth/csrf"; do
+  # Untrusted container in the same internal Compose network (not the configured proxy address).
+  spoofed_headers="$(docker run --rm --network "${project_name}_backend" "$curl_image" \
+    --silent --max-time 10 --dump-header - --output /dev/null \
+    --header 'X-Forwarded-Proto: https' --header 'X-Forwarded-For: 203.0.113.9' "$target" || true)"
+  status_line="$(head -n 1 <<< "$spoofed_headers" | tr -d '\r')"
+  [[ -n "$status_line" ]] || fail "No response from $target."
+  if grep --quiet ' 200' <<< "$status_line" || grep --ignore-case --quiet '^set-cookie: __Host-KF' <<< "$spoofed_headers"; then
+    fail "Forged X-Forwarded-Proto from an untrusted sender was accepted by $target ($status_line)."
+  fi
+done
 
 echo "Creating the first Küchenfuchs administrator in a disposable bootstrap container..."
 compose --profile bootstrap run --rm bootstrap

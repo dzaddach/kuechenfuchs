@@ -14,7 +14,9 @@ services:
       caddy:
         condition: service_healthy
     networks:
-      - ingress
+      ingress:
+        # Simulierter Heimserver-Caddy mit fester Adresse = einzige vertrauenswürdige Edge-Adresse.
+        ipv4_address: ${P5A2_EDGE_IP:?P5A2_EDGE_IP muss gesetzt sein}
 
   api:
     environment:

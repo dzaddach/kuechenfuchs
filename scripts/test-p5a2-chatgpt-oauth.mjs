@@ -130,6 +130,12 @@ async function main() {
   assert.equal((await new Browser().request(`${origin}/api/openapi/v1.json`)).status, 404);
   check('edge sets HSTS/nosniff, hides Server; API runs in Production (no OpenAPI document)');
 
+  response = await new Browser().request(`${origin}/api/auth/csrf`, {
+    headers: { 'X-Forwarded-Proto': 'http', 'X-Forwarded-For': '203.0.113.66', 'X-Forwarded-Host': 'evil.example' },
+  });
+  assert.equal(response.status, 200, 'edge must overwrite client-supplied forwarding headers');
+  check('client-supplied X-Forwarded-* are overwritten by the edge; untrusted senders inside the network were rejected (see shell checks)');
+
   console.log('Checking PWA login in Production mode...');
   const pwa = new Browser();
   response = await pwa.request(`${origin}/api/auth/login`, {
@@ -276,6 +282,9 @@ async function main() {
   [active] = await links(pwa);
   assert.equal(active.chatGpt.state, 'authorized');
   assert.ok(active.chatGpt.sessionLastAccessAt);
+  // Keycloak reports lastAccess in Unix milliseconds; a unit error would land in 1970 or far in the future.
+  assert.ok(Math.abs(Date.parse(active.chatGpt.sessionLastAccessAt) - Date.now()) < 10 * 60_000,
+    `implausible Keycloak session lastAccess: ${active.chatGpt.sessionLastAccessAt}`);
   assert.ok(active.lastBearerAccessAt);
   assert.ok(!JSON.stringify(active).includes(alice.id), 'status must not expose the external subject');
   check('after ChatGPT authorization and a bearer call the server reports "authorized" with last access');

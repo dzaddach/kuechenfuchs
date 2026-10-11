@@ -36,6 +36,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # TLS endet am Heimserver-Caddy; nur X-Forwarded-Proto/-For aus privaten Netzen auswerten.
       ReverseProxy__TrustForwardedHeaders: "true"
+      ReverseProxy__KnownProxies: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10}
       Keycloak__Issuer: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein (z. B. https://kuechenfuchs.zaddach.org)}/auth/realms/kuechenfuchs
       Keycloak__LinkRedirectUri: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/api/v1/integrations/keycloak/callback
     depends_on:
@@ -48,6 +49,17 @@ services:
 
   caddy:
     restart: unless-stopped
+    environment:
+      # Nur der Heimserver-Caddy (konkrete Absenderadresse, z. B. Gateway des ingress-Netzes) darf
+      # X-Forwarded-* an den Küchenfuchs-Caddy liefern. Siehe docs/homeserver-setup.md, Abschnitt 4.
+      KF_TRUSTED_PROXIES: ${KUECHENFUCHS_EDGE_PROXY_ADDRESSES:?KUECHENFUCHS_EDGE_PROXY_ADDRESSES muss gesetzt sein (z. B. 172.31.241.1/32)}
+    networks:
+      backend:
+        # Feste Adresse: nur dieser Proxy darf API und Keycloak X-Forwarded-* liefern.
+        ipv4_address: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10}
+      ingress:
+        # Keycloak teilt auch das ingress-Netz mit diesem Caddy; daher auch hier eine feste Adresse.
+        ipv4_address: ${KUECHENFUCHS_PROXY_INGRESS_IP:-172.31.241.10}
 
   keycloak-db:
     restart: unless-stopped
@@ -56,4 +68,18 @@ services:
     restart: unless-stopped
     environment:
       KC_HOSTNAME: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/auth
+      # Keycloak wird nur vom Küchenfuchs-Caddy angesprochen; nur dessen X-Forwarded-* gelten.
+      KC_PROXY_TRUSTED_ADDRESSES: ${KUECHENFUCHS_PROXY_IP:-172.31.240.10},${KUECHENFUCHS_PROXY_INGRESS_IP:-172.31.241.10}
       KC_LINK_REDIRECT_URI: ${KUECHENFUCHS_PUBLIC_URL:?KUECHENFUCHS_PUBLIC_URL muss gesetzt sein}/api/v1/integrations/keycloak/callback
+
+networks:
+  # Feste, konfigurierbare Subnetze, damit vertrauenswürdige Proxy-Adressen konkret benannt werden können.
+  # Vor der Einrichtung prüfen, dass sie nicht mit bestehenden Netzen kollidieren: docker network inspect … / ip route
+  backend:
+    ipam:
+      config:
+        - subnet: ${KUECHENFUCHS_BACKEND_SUBNET:-172.31.240.0/24}
+  ingress:
+    ipam:
+      config:
+        - subnet: ${KUECHENFUCHS_INGRESS_SUBNET:-172.31.241.0/24}

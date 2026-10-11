@@ -78,34 +78,44 @@ public sealed class KeycloakAdminClient(
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            DateTimeOffset? lastAccess = null;
-            var active = false;
-            foreach (var session in document.RootElement.EnumerateArray())
-            {
-                if (!session.TryGetProperty("clients", out var clients)
-                    || clients.ValueKind != JsonValueKind.Object
-                    || !clients.EnumerateObject().Any(client =>
-                        client.Value.ValueKind == JsonValueKind.String
-                        && client.Value.GetString() == _options.ChatGptClientId))
-                {
-                    continue;
-                }
-
-                active = true;
-                if (session.TryGetProperty("lastAccess", out var lastAccessValue) && lastAccessValue.TryGetInt64(out var milliseconds))
-                {
-                    var candidate = DateTimeOffset.FromUnixTimeMilliseconds(milliseconds);
-                    lastAccess = lastAccess is null || candidate > lastAccess ? candidate : lastAccess;
-                }
-            }
-
-            return new ChatGptSessionStatus(active, lastAccess);
+            return ParseChatGptSessions(document.RootElement, _options.ChatGptClientId);
         }
         catch (Exception exception) when (IsUnavailable(exception, cancellationToken) || exception is JsonException)
         {
             logger.LogWarning("Keycloak session status unavailable: {ExceptionType}.", exception.GetType().Name);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Evaluates Keycloak's UserSessionRepresentation list. <c>lastAccess</c> (like <c>start</c>) is a Unix time
+    /// in <b>milliseconds</b>: verified against Keycloak 26.7.5 on 11.10.2026 (e.g. 1791734487000 for a session
+    /// created at Unix second 1791734487). The P5a.2 end-to-end test additionally checks plausibility.
+    /// </summary>
+    public static ChatGptSessionStatus ParseChatGptSessions(JsonElement sessions, string chatGptClientId)
+    {
+        DateTimeOffset? lastAccess = null;
+        var active = false;
+        foreach (var session in sessions.EnumerateArray())
+        {
+            if (!session.TryGetProperty("clients", out var clients)
+                || clients.ValueKind != JsonValueKind.Object
+                || !clients.EnumerateObject().Any(client =>
+                    client.Value.ValueKind == JsonValueKind.String
+                    && client.Value.GetString() == chatGptClientId))
+            {
+                continue;
+            }
+
+            active = true;
+            if (session.TryGetProperty("lastAccess", out var lastAccessValue) && lastAccessValue.TryGetInt64(out var milliseconds))
+            {
+                var candidate = DateTimeOffset.FromUnixTimeMilliseconds(milliseconds);
+                lastAccess = lastAccess is null || candidate > lastAccess ? candidate : lastAccess;
+            }
+        }
+
+        return new ChatGptSessionStatus(active, lastAccess);
     }
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string relativePath, CancellationToken cancellationToken)

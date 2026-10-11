@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Kuechenfuchs.Api.Ai;
 using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.ExternalIdentity;
+using Kuechenfuchs.Api.Hosting;
 using Kuechenfuchs.Api.Identity;
 using Kuechenfuchs.Api.Recipes;
 using Microsoft.AspNetCore.Antiforgery;
@@ -127,21 +128,14 @@ if (!string.IsNullOrWhiteSpace(dataProtectionPath))
 }
 
 // Hinter TLS-terminierenden Proxys (Heimserver: Edge-Caddy -> Küchenfuchs-Caddy -> API) nur Schema und
-// Client-IP aus privaten Compose-Netzen übernehmen; Host-Header und daraus abgeleitete URLs nie.
-var trustForwardedHeaders = builder.Configuration.GetValue("ReverseProxy:TrustForwardedHeaders", false);
+// Client-IP vom ausdrücklich konfigurierten, kontrollierten Proxy übernehmen; Host-Header nie.
+var reverseProxySettings = builder.Configuration.GetSection(ReverseProxySettings.SectionName).Get<ReverseProxySettings>()
+    ?? new ReverseProxySettings();
+var trustForwardedHeaders = reverseProxySettings.TrustForwardedHeaders;
 if (trustForwardedHeaders)
 {
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.ForwardLimit = 2;
-        options.KnownProxies.Clear();
-        options.KnownIPNetworks.Clear();
-        foreach (var network in new[] { "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8" })
-        {
-            options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
-        }
-    });
+    reverseProxySettings.Apply(new ForwardedHeadersOptions());
+    builder.Services.Configure<ForwardedHeadersOptions>(reverseProxySettings.Apply);
 }
 
 builder.Services.AddAuthorization();
