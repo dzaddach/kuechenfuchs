@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.Identity;
+using Kuechenfuchs.Api.Recipes;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -137,6 +138,24 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    var isWriteMethod = HttpMethods.IsPost(context.Request.Method)
+        || HttpMethods.IsPut(context.Request.Method)
+        || HttpMethods.IsPatch(context.Request.Method)
+        || HttpMethods.IsDelete(context.Request.Method);
+    if (isWriteMethod && context.User.Identity?.IsAuthenticated == true)
+    {
+        var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
+        if (!await HasValidAntiforgeryToken(context, antiforgery))
+        {
+            await AntiforgeryProblem().ExecuteAsync(context);
+            return;
+        }
+    }
+
+    await next(context);
+});
 app.UseAuthorization();
 
 app.MapGet("/api/health/live", () => Results.Ok(new { status = "ok" }));
@@ -248,6 +267,7 @@ auth.MapPost(
     .RequireAuthorization();
 
 var api = app.MapGroup("/api/v1").RequireAuthorization();
+api.MapRecipeEndpoints();
 api.MapGet(
     "/me",
     async Task<IResult> (ClaimsPrincipal principal, KuechenfuchsDbContext database) =>

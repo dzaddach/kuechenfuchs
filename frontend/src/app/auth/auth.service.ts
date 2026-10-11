@@ -109,7 +109,7 @@ export class AuthService {
     }
   }
 
-  private async getCsrfToken(): Promise<string> {
+  async getCsrfToken(): Promise<string> {
     const response = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Unable to obtain an anti-forgery token.');
     const result = await response.json() as CsrfResponse;

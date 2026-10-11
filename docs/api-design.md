@@ -1,14 +1,15 @@
 # Küchenfuchs – API-Design
 
-**Stand:** 10. Oktober 2026 · **Status:** Entwurf; OpenAPI-Vertrag entsteht erst nach Freigabe
+**Stand:** 11. Oktober 2026 · **Status:** P3-Rezeptvertrag umgesetzt; übrige Bereiche bleiben Entwurf
 
 ## Konventionen
 
 - Basis `/api/v1`; JSON in UTF-8, UUID-IDs, Datumswerte ISO 8601 mit Offset/UTC.
 - REST-Ressourcen nach Haushalt getrennt: `/households/{householdId}/...`. Die API prüft Mitgliedschaft bei jedem Aufruf.
 - Dezimalwerte als JSON-Zahlen mit definierter Präzision; `amount: null` bedeutet unbekannt/„nach Geschmack“, nicht null Menge.
-- `ETag`/`If-Match` bei veränderlichen Rezepten und Listen; bei veralteter Version `412 Precondition Failed` oder einheitlich gewähltes `409 Conflict` – final im OpenAPI-Vertrag entscheiden.
+- `ETag`/`If-Match` bei veränderlichen Rezepten; fehlender `If-Match` ergibt `428 Precondition Required`, eine veraltete Version `412 Precondition Failed`.
 - Fehler als RFC 9457 Problem Details, ohne Stacktrace oder Geheimnisse. Validierungsfehler nennen sichere Feldpfade.
+- Alle zustandsändernden Cookie-authentifizierten Anfragen (POST, PUT, PATCH, DELETE) verlangen das serverseitig validierte Antiforgery-Token im Header `X-KF-CSRF`; SameSite-Cookies sind nur eine zusätzliche Schutzschicht.
 - Listenoperationen idempotent gestalten, insbesondere Toggle/Erledigt-Änderungen nicht als blinden „toggle“-Befehl modellieren: `PATCH { isChecked: true }`.
 
 ## MVP-Endpunkte
@@ -24,6 +25,8 @@
 | `PUT /api/v1/households/{hid}/recipes/{rid}` | Rezept ändern | `If-Match` erforderlich; konkurrierende Änderung nicht still überschreiben |
 | `DELETE /api/v1/households/{hid}/recipes/{rid}` | Rezept archivieren/löschen | MVP vorzugsweise Soft-Delete bzw. nachvollziehbare Archivierung |
 | `GET /api/v1/households/{hid}/foods` | Lebensmittel suchen | Paginierung, normalisierte Daten |
+| `GET /api/v1/households/{hid}/foods/{foodId}` | Katalog-Lebensmittel abrufen | Mitgliedschaft prüfen |
+| `GET /api/v1/households/{hid}/units` | stabile Einheiten und Dimensionen abrufen | Mitgliedschaft prüfen; keine unsichere Dimensionsumrechnung |
 | `GET /api/v1/households/{hid}/meal-plans?from=&to=` | Zeitraumplan lesen | Zeitraumgrenzen validieren |
 | `PUT /api/v1/households/{hid}/meal-plans/{date}` | Einträge für Datum ersetzen/aktualisieren | Eindeutige Idempotenz und Versionierung |
 | `POST /api/v1/households/{hid}/shopping-lists` | Liste aus ausgewählten Plan-/Rezeptpositionen erzeugen | Skalierung und Aggregation nach dokumentierten Regeln; Ursprung erhalten |
@@ -35,6 +38,21 @@
 | `GET /api/v1/households/{hid}/recommendations/{id}` | Empfehlung samt Erklärung abrufen | Jede Zuordnung und Kostengrundlage nachvollziehbar |
 
 Das MVP kann Pläne zunächst nur im UI oder als vereinfachte Tabelle führen, wenn der Rezept→Einkauf→Mock-Ablauf erhalten bleibt. Eine Endpunktfamilie soll nicht implementiert werden, bevor sie im akzeptierten Arbeitspaket benötigt wird.
+
+### P3-Rezeptvertrag
+
+Implementierte Endpunkte:
+
+- `GET /api/v1/households/{hid}/recipes?q=&category=&includeArchived=` listet bis zu 100 nicht archivierte Rezepte; Suche umfasst Name, Beschreibung, Zutatenbezeichnung und Tags.
+- `POST /api/v1/households/{hid}/recipes` erstellt das Rezept samt Zutaten und Schritten und antwortet mit `201 Created` und `ETag`.
+- `GET /api/v1/households/{hid}/recipes/{rid}` liefert Rezeptdetails und `ETag`.
+- `PUT /api/v1/households/{hid}/recipes/{rid}` ersetzt die bearbeitbaren Rezeptfelder, Zutaten und Schritte atomar; `If-Match` ist erforderlich.
+- `DELETE /api/v1/households/{hid}/recipes/{rid}` archiviert das Rezept und verlangt ebenfalls `If-Match`.
+- `GET /api/v1/households/{hid}/foods?q=` und `/foods/{foodId}` lesen den normalisierten Lebensmittelkatalog; `/units` liefert Einheiten mit Dimension.
+- `GET /api/v1/households/{hid}/recipe-favorites` liefert die Favoriten-IDs des Haushalts.
+- `PUT /api/v1/households/{hid}/recipes/{rid}/favorite` und `DELETE .../favorite` setzen bzw. entfernen einen haushaltsweit geteilten Favoriten idempotent; beide Schreibzugriffe verlangen CSRF-Schutz.
+
+Alle Routen liegen in der autorisierten API-Gruppe und prüfen die Haushaltsmitgliedschaft serverseitig. Unbekannte Haushalte und haushaltsfremde Ressourcen werden nicht offengelegt (404). `amount: null` bleibt unbekannt; Mengen müssen positiv sein und höchstens drei Nachkommastellen besitzen. Mengen werden nicht zwischen Dimensionen umgerechnet.
 
 ## KI- und externe ChatGPT-Endpunkte
 
