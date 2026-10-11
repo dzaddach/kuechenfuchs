@@ -1,0 +1,37 @@
+:host { display: block; min-height: 100dvh; }
+.login-page {
+  display: grid;
+  min-height: 100dvh;
+  align-content: center;
+  justify-items: center;
+  padding: max(24px,env(safe-area-inset-top)) 18px max(24px,env(safe-area-inset-bottom));
+  background:
+    radial-gradient(ellipse at 8% 14%, color-mix(in srgb,var(--green-wash) 76%,transparent), transparent 36%),
+    radial-gradient(ellipse at 94% 88%, color-mix(in srgb,#ead9bb 45%,transparent), transparent 34%),
+    var(--canvas);
+}
+.login-card { width: min(100%,430px); padding: 38px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 18px 60px rgb(47 61 48 / 10%); }
+.brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 43px; color: var(--ink); font-size: 20px; font-weight: 750; letter-spacing: -.7px; text-decoration: none; }
+.brand-mark { display: grid; width: 39px; height: 39px; place-items: center; border-radius: 13px; color: #fffdf5; background: var(--green); }
+.brand-mark app-icon { width: 22px; height: 22px; }
+.eyebrow { margin: 0 0 8px; color: var(--green); font-size: 9px; font-weight: 800; letter-spacing: 1.3px; }
+h1 { margin: 0 0 8px; color: var(--ink); font-family: Manrope,'DM Sans',sans-serif; font-size: 29px; letter-spacing: -1.1px; }
+.intro { margin: 0 0 26px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.field { display: grid; gap: 7px; margin-bottom: 17px; }
+.field label { color: var(--ink); font-size: 10px; font-weight: 700; }
+.field input { width: 100%; height: 47px; padding: 0 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: var(--canvas); font-size: 12px; }
+.field input::placeholder { color: var(--muted); opacity: .78; }
+.field-error { color: #b74c49; font-size: 9px; }
+.submit-button { display: flex; width: 100%; min-height: 47px; align-items: center; justify-content: center; gap: 9px; margin-top: 23px; border: 0; border-radius: 12px; color: #fffdf7; background: var(--green); font-size: 12px; font-weight: 750; cursor: pointer; }
+.submit-button:hover:not(:disabled) { background: var(--green-dark); }
+.submit-button:disabled { opacity: .72; cursor: wait; }
+.submit-button app-icon { width: 16px; height: 16px; }
+.spinner { width: 15px; height: 15px; border: 2px solid rgb(255 255 255 / 45%); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+.error-message { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0; padding: 11px; border-radius: 10px; color: #9f433e; background: #f9ece9; font-size: 10px; line-height: 1.5; }
+.error-message app-icon { width: 15px; height: 15px; flex: none; }
+.privacy-note { display: flex; justify-content: center; align-items: center; gap: 7px; margin: 24px 0 0; color: var(--muted); font-size: 9px; }
+.privacy-note app-icon { width: 14px; height: 14px; color: var(--green); }
+.login-footer { margin: 22px 0 0; color: var(--muted); font-size: 9px; text-align: center; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width:500px) { .login-card { padding: 28px 22px; border-radius: 20px; } .brand { margin-bottom: 34px; } }
+@media (prefers-reduced-motion:reduce) { .spinner { animation-duration: 2s; } }
