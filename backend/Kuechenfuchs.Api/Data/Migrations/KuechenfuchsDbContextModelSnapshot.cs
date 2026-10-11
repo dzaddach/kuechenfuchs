@@ -263,6 +263,19 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.ToTable("Recipes");
                 });
 
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeFavorite", b =>
+                {
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("HouseholdId", "RecipeId");
+
+                    b.ToTable("RecipeFavorites");
+                });
+
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeIngredient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -560,6 +573,16 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.Navigation("Household");
                 });
 
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeFavorite", b =>
+                {
+                    b.HasOne("Kuechenfuchs.Api.Identity.Recipe", null)
+                        .WithMany("Favorites")
+                        .HasForeignKey("HouseholdId", "RecipeId")
+                        .HasPrincipalKey("HouseholdId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeIngredient", b =>
                 {
                     b.HasOne("Kuechenfuchs.Api.Identity.Food", "Food")
@@ -653,6 +676,8 @@ namespace Kuechenfuchs.Api.Data.Migrations
 
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.Recipe", b =>
                 {
+                    b.Navigation("Favorites");
+
                     b.Navigation("Ingredients");
 
                     b.Navigation("Steps");

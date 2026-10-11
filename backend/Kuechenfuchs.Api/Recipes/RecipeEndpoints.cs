@@ -20,12 +20,88 @@ public static class RecipeEndpoints
         recipes.MapPost("", CreateAsync);
         recipes.MapPut("/{recipeId:guid}", UpdateAsync);
         recipes.MapDelete("/{recipeId:guid}", ArchiveAsync);
+        recipes.MapPut("/{recipeId:guid}/favorite", AddFavoriteAsync);
+        recipes.MapDelete("/{recipeId:guid}/favorite", RemoveFavoriteAsync);
 
         var catalog = api.MapGroup("/households/{householdId:guid}");
+        catalog.MapGet("/recipe-favorites", GetFavoritesAsync);
         catalog.MapGet("/units", GetUnitsAsync);
         catalog.MapGet("/foods", SearchFoodsAsync);
         catalog.MapGet("/foods/{foodId:guid}", GetFoodAsync);
         return api;
+    }
+
+    private static async Task<IResult> GetFavoritesAsync(
+        Guid householdId,
+        ClaimsPrincipal principal,
+        KuechenfuchsDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null || !await IsMemberAsync(database, householdId, userId.Value, cancellationToken))
+        {
+            return Results.NotFound();
+        }
+
+        var favorites = await database.RecipeFavorites.AsNoTracking()
+            .Where(favorite => favorite.HouseholdId == householdId)
+            .Select(favorite => favorite.RecipeId)
+            .ToListAsync(cancellationToken);
+        return Results.Ok(favorites);
+    }
+
+    private static async Task<IResult> AddFavoriteAsync(
+        Guid householdId,
+        Guid recipeId,
+        ClaimsPrincipal principal,
+        KuechenfuchsDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null || !await IsMemberAsync(database, householdId, userId.Value, cancellationToken))
+        {
+            return Results.NotFound();
+        }
+
+        var recipeExists = await database.Recipes.AnyAsync(
+            recipe => recipe.HouseholdId == householdId && recipe.Id == recipeId && !recipe.IsArchived,
+            cancellationToken);
+        if (!recipeExists)
+        {
+            return Results.NotFound();
+        }
+
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO \"RecipeFavorites\" (\"HouseholdId\", \"RecipeId\") VALUES ({householdId}, {recipeId}) ON CONFLICT DO NOTHING",
+            cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> RemoveFavoriteAsync(
+        Guid householdId,
+        Guid recipeId,
+        ClaimsPrincipal principal,
+        KuechenfuchsDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null || !await IsMemberAsync(database, householdId, userId.Value, cancellationToken))
+        {
+            return Results.NotFound();
+        }
+
+        var recipeExists = await database.Recipes.AnyAsync(
+            recipe => recipe.HouseholdId == householdId && recipe.Id == recipeId,
+            cancellationToken);
+        if (!recipeExists)
+        {
+            return Results.NotFound();
+        }
+
+        await database.RecipeFavorites
+            .Where(favorite => favorite.HouseholdId == householdId && favorite.RecipeId == recipeId)
+            .ExecuteDeleteAsync(cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ListAsync(

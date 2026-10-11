@@ -17,6 +17,7 @@ public sealed class Recipe
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<RecipeIngredient> Ingredients { get; } = new List<RecipeIngredient>();
     public ICollection<RecipeStep> Steps { get; } = new List<RecipeStep>();
+    public ICollection<RecipeFavorite> Favorites { get; } = new List<RecipeFavorite>();
 }
 
 public sealed class RecipeIngredient

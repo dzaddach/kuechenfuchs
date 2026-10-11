@@ -61,6 +61,23 @@ export class RecipeApiService {
     return this.request(`/api/v1/households/${householdId}/units`);
   }
 
+  async favorites(householdId: string): Promise<string[]> {
+    return this.request(`/api/v1/households/${householdId}/recipe-favorites`);
+  }
+
+  async setFavorite(householdId: string, recipeId: string, isFavorite: boolean): Promise<void> {
+    const csrf = await this.auth.getCsrfToken();
+    const response = await fetch(
+      `/api/v1/households/${householdId}/recipes/${recipeId}/favorite`,
+      {
+        method: isFavorite ? 'PUT' : 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'X-KF-CSRF': csrf },
+      },
+    );
+    if (!response.ok) throw new Error(await this.errorMessage(response));
+  }
+
   async save(householdId: string, recipe: RecipeWrite, recipeId?: string, version?: string): Promise<RecipeRecord> {
     const csrf = await this.auth.getCsrfToken();
     const response = await fetch(

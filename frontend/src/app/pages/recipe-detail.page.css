@@ -1,0 +1,46 @@
+:host { display: block; max-width: 1040px; margin: 0 auto; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; margin: 3px 0 20px; color: var(--muted); font-size: 12px; text-decoration: none; }
+.back-link app-icon { width: 16px; height: 16px; }
+.loading { color: var(--muted); }
+.detail { display: grid; gap: 18px; }
+.hero { display: grid; min-height: 290px; grid-template-columns: minmax(220px, .8fr) 1.2fr; overflow: hidden; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
+.hero-art { display: grid; min-height: 260px; place-items: center; background: linear-gradient(145deg, #ede4d3, #d5e2d5 58%, #bdcfbe); }
+.hero-art span { padding: 10px 16px; border: 1px solid rgb(255 255 255 / 75%); border-radius: 22px; color: #375740; background: rgb(255 255 255 / 66%); font-size: 12px; font-weight: 700; }
+.hero-copy { align-self: center; padding: clamp(22px, 5vw, 48px); }
+.eyebrow { margin: 0 0 10px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 12px; color: var(--ink); font-family: Manrope, 'DM Sans', sans-serif; font-size: clamp(28px, 4vw, 42px); letter-spacing: -1.2px; line-height: 1.1; }
+.description { margin-bottom: 15px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.tags { display: flex; flex-wrap: wrap; gap: 7px; padding: 0; margin: 0 0 20px; list-style: none; }
+.tags li { padding: 6px 10px; border-radius: 20px; color: var(--green); background: var(--green-wash); font-size: 10px; }
+.edit-button, .secondary-button { display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; border: 0; border-radius: 12px; color: #fffdf7; background: var(--green); font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.edit-button app-icon { width: 16px; height: 16px; }
+.content-card { padding: clamp(20px, 4vw, 32px); border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
+.section-heading .eyebrow { margin-bottom: 6px; }
+h2 { margin-bottom: 0; color: var(--ink); font-family: Manrope, 'DM Sans', sans-serif; font-size: 22px; letter-spacing: -.5px; }
+.servings { display: grid; gap: 6px; color: var(--muted); font-size: 10px; }
+.servings span, .time { display: inline-flex; align-items: center; gap: 6px; }
+.servings app-icon, .time app-icon { width: 14px; height: 14px; }
+.servings input { width: 104px; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--surface); font: inherit; font-size: 13px; }
+.scale-note { margin-bottom: 15px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.ingredient-list { padding: 0; margin: 0; list-style: none; }
+.ingredient-list li { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 3px; border-top: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.ingredient-list li:first-child { border-top: 0; }
+.ingredient-name small { color: var(--muted); }
+.amount { color: var(--green); font-weight: 700; text-align: right; white-space: nowrap; }
+.time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.steps { display: grid; gap: 4px; padding: 0; margin: 20px 0 0; list-style: none; counter-reset: none; }
+.steps li { display: grid; grid-template-columns: 32px 1fr; align-items: start; gap: 13px; padding: 14px 0; border-top: 1px solid var(--line); }
+.step-number { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; color: var(--green); background: var(--green-wash); font-size: 12px; font-weight: 800; }
+.steps p { padding-top: 5px; margin: 0; color: var(--ink); font-size: 13px; line-height: 1.65; white-space: pre-line; }
+.empty-state { padding: 40px 20px; border: 1px dashed var(--line); border-radius: 18px; text-align: center; }
+.empty-state p { color: var(--muted); }
+.secondary-button { color: var(--green); background: var(--green-wash); }
+@media (max-width: 650px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-art { min-height: 160px; }
+  .hero-copy { padding: 23px; }
+  .section-heading { align-items: start; }
+  h2 { font-size: 20px; }
+}

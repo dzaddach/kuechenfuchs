@@ -50,19 +50,19 @@ import { RecipeApiService, RecipeSummary } from '../recipes/recipe-api.service';
         @for (recipe of filteredRecipes(); track recipe.id) {
           <article class="recipe-card">
             <div class="recipe-image recipe-placeholder" aria-hidden="true"><span>{{ recipe.category }}</span></div>
-            <button class="favorite-button" type="button" [class.is-favorite]="favorites().has(recipe.id)"
+            <button class="favorite-button" type="button" [disabled]="pendingFavorites().has(recipe.id)" [class.is-favorite]="favorites().has(recipe.id)"
                     [attr.aria-label]="favorites().has(recipe.id) ? recipe.name + ' aus Favoriten entfernen' : recipe.name + ' als Favorit markieren'"
                     [attr.aria-pressed]="favorites().has(recipe.id)" (click)="toggleFavorite(recipe.id)">
               <app-icon name="heart" />
             </button>
             <div class="recipe-copy">
               <div class="recipe-meta-top"><span>{{ recipe.category }}</span></div>
-              <a class="recipe-title" [routerLink]="['/recipes', recipe.id, 'edit']">{{ recipe.name }}</a>
+              <a class="recipe-title" [routerLink]="['/recipes', recipe.id]">{{ recipe.name }}</a>
               <p>{{ recipe.description || 'Ein Rezept aus deinem Haushalt.' }}</p>
               <div class="recipe-footer">
                 <span><app-icon name="clock" /> {{ recipe.preparationMinutes }} Min.</span>
                 <span><app-icon name="users" /> {{ recipe.baseServings }} Portionen</span>
-                <a class="details-link" [routerLink]="['/recipes', recipe.id, 'edit']">Bearbeiten</a>
+                <a class="details-link" [routerLink]="['/recipes', recipe.id]">Ansehen</a>
               </div>
             </div>
           </article>
@@ -81,10 +81,12 @@ export class RecipesPage {
   readonly activeCategory = signal('Alle');
   readonly showFavoritesOnly = signal(false);
   readonly favorites = signal(new Set<string>());
+  readonly pendingFavorites = signal(new Set<string>());
   readonly loading = signal(true);
   readonly error = signal('');
   readonly recipes = signal<RecipeSummary[]>([]);
   private searchTimer?: ReturnType<typeof setTimeout>;
+  private latestSearchRequest = 0;
 
   readonly filteredRecipes = computed(() => {
     const q = this.query().trim().toLocaleLowerCase('de');
@@ -99,47 +101,78 @@ export class RecipesPage {
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.searchTimer));
-    void this.load();
+    void this.load(++this.latestSearchRequest, true);
   }
 
   updateSearch(event: Event): void {
     if (!(event.target instanceof HTMLInputElement)) return;
     this.query.set(event.target.value);
+    const searchRequest = ++this.latestSearchRequest;
     clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => void this.load(), 250);
+    this.searchTimer = setTimeout(() => void this.load(searchRequest), 250);
   }
 
-  toggleFavorite(id: string): void {
-    const next = new Set(this.favorites());
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    this.favorites.set(next);
+  async toggleFavorite(id: string): Promise<void> {
+    if (this.pendingFavorites().has(id)) return;
+    const householdId = this.householdId();
+    if (!householdId) return;
+    const isFavorite = !this.favorites().has(id);
+    const pending = new Set(this.pendingFavorites());
+    pending.add(id);
+    this.pendingFavorites.set(pending);
+    this.error.set('');
+    try {
+      await this.api.setFavorite(householdId, id, isFavorite);
+      const next = new Set(this.favorites());
+      if (isFavorite) next.add(id);
+      else next.delete(id);
+      this.favorites.set(next);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Favorit konnte nicht gespeichert werden.');
+    } finally {
+      const remaining = new Set(this.pendingFavorites());
+      remaining.delete(id);
+      this.pendingFavorites.set(remaining);
+    }
   }
 
   resetFilters(): void {
     this.query.set('');
     this.activeCategory.set('Alle');
     this.showFavoritesOnly.set(false);
-    this.favorites.set(new Set());
     clearTimeout(this.searchTimer);
-    void this.load();
+    void this.load(++this.latestSearchRequest);
   }
 
-  private async load(): Promise<void> {
-    const householdId = this.auth.session()?.households[0]?.householdId;
+  private async load(searchRequest: number, includeFavorites = false): Promise<void> {
+    const householdId = this.householdId();
     if (!householdId) {
-      this.loading.set(false);
-      this.error.set('Deinem Benutzer ist kein Haushalt zugeordnet.');
+      if (searchRequest === this.latestSearchRequest) {
+        this.loading.set(false);
+        this.error.set('Deinem Benutzer ist kein Haushalt zugeordnet.');
+      }
       return;
     }
     this.loading.set(true);
-    this.error.set('');
+    if (searchRequest === this.latestSearchRequest) this.error.set('');
     try {
-      this.recipes.set(await this.api.list(householdId, this.query()));
+      const [recipes, favorites] = await Promise.all([
+        this.api.list(householdId, this.query()),
+        includeFavorites ? this.api.favorites(householdId) : Promise.resolve(null),
+      ]);
+      if (searchRequest !== this.latestSearchRequest) return;
+      this.recipes.set(recipes);
+      if (favorites) this.favorites.set(new Set(favorites));
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Rezepte konnten nicht geladen werden.');
+      if (searchRequest === this.latestSearchRequest) {
+        this.error.set(error instanceof Error ? error.message : 'Rezepte konnten nicht geladen werden.');
+      }
     } finally {
-      this.loading.set(false);
+      if (searchRequest === this.latestSearchRequest) this.loading.set(false);
     }
+  }
+
+  private householdId(): string | undefined {
+    return this.auth.session()?.households[0]?.householdId;
   }
 }

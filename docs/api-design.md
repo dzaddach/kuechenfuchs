@@ -49,6 +49,8 @@ Implementierte Endpunkte:
 - `PUT /api/v1/households/{hid}/recipes/{rid}` ersetzt die bearbeitbaren Rezeptfelder, Zutaten und Schritte atomar; `If-Match` ist erforderlich.
 - `DELETE /api/v1/households/{hid}/recipes/{rid}` archiviert das Rezept und verlangt ebenfalls `If-Match`.
 - `GET /api/v1/households/{hid}/foods?q=` und `/foods/{foodId}` lesen den normalisierten Lebensmittelkatalog; `/units` liefert Einheiten mit Dimension.
+- `GET /api/v1/households/{hid}/recipe-favorites` liefert die Favoriten-IDs des Haushalts.
+- `PUT /api/v1/households/{hid}/recipes/{rid}/favorite` und `DELETE .../favorite` setzen bzw. entfernen einen haushaltsweit geteilten Favoriten idempotent; beide Schreibzugriffe verlangen CSRF-Schutz.
 
 Alle Routen liegen in der autorisierten API-Gruppe und prüfen die Haushaltsmitgliedschaft serverseitig. Unbekannte Haushalte und haushaltsfremde Ressourcen werden nicht offengelegt (404). `amount: null` bleibt unbekannt; Mengen müssen positiv sein und höchstens drei Nachkommastellen besitzen. Mengen werden nicht zwischen Dimensionen umgerechnet.
 

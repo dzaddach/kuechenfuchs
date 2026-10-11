@@ -39,15 +39,16 @@
 
 ### P3-Rezeptmodell
 
-Die implementierte P3-Scheibe persistiert `Recipe`, `RecipeIngredient`, `RecipeStep`, `Food` und `Unit` in PostgreSQL:
+Die implementierte P3-Scheibe persistiert `Recipe`, `RecipeIngredient`, `RecipeStep`, `RecipeFavorite`, `Food` und `Unit` in PostgreSQL:
 
 - `Recipe` gehört genau einem Haushalt und enthält Name, Beschreibung, positive Basisportionen, Zubereitungszeit, Kategorie, Tags, Archivstatus sowie eine GUID-Concurrency-Version.
 - `RecipeIngredient` gehört genau einem Rezept. Reihenfolge ist pro Rezept eindeutig; Bezeichnung und stabiler `Unit.Code` sind erforderlich. `Amount` ist `numeric(12,3)` und nullable: `null` bedeutet unbekannte Menge, während null oder negative Zahlen als Menge unzulässig sind. Optionales `FoodId` verweist auf den normalisierten, katalogweiten Lebensmittelbestand.
 - `RecipeStep` gehört genau einem Rezept; die Reihenfolge ist pro Rezept eindeutig.
+- `RecipeFavorite` ist eine haushaltsweit geteilte Zuordnung aus `HouseholdId` und `RecipeId`. Ein zusammengesetzter Fremdschlüssel stellt sicher, dass Favorit und Rezept zum selben Haushalt gehören. Favoriten werden zusammen mit einem physisch gelöschten Rezept entfernt; die Rezeptarchivierung erhält sie.
 - `Food` ist ein normalisierter Katalogeintrag ohne Preis oder Händleridentität. `RetailerProduct` und zeitlich gültiges `Offer` bleiben getrennte, noch nicht implementierte Entitäten.
 - `Unit` verwendet stabile Codes und Dimensionen (`mass`, `volume`, `count`). P3 rechnet keine inkompatiblen Einheiten um; Portionsskalierung ändert nur die Anzeige und nie gespeicherte Grundmengen.
 - Rezepte werden archiviert statt physisch gelöscht. Rezeptzeilen und Schritte werden beim Löschen des Elternrezepts kaskadiert; Food- und Unit-Referenzen werden vor Löschen geschützt.
-- Tags werden als PostgreSQL-Textarray gespeichert. Favoriten, Produktzuordnungen und Food-spezifische Konversionen sind nicht Teil von P3.
+- Tags werden als PostgreSQL-Textarray gespeichert. Produktzuordnungen und Food-spezifische Konversionen sind nicht Teil von P3.
 
 Für den MVP können `RecipeStep`, `FoodConversion`, Favoriten/Tags und die Recommendation-Entitäten reduziert oder erst bei Bedarf eingeführt werden. Haushaltsbezug und die Trennung der vier Kerndomänen sollen dagegen von Beginn an feststehen. Keine Entität erzwingt bereits einen Händler-Connector.
 

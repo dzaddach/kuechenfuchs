@@ -14,6 +14,7 @@ public sealed class KuechenfuchsDbContext(
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
+    public DbSet<RecipeFavorite> RecipeFavorites => Set<RecipeFavorite>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<Unit> Units => Set<Unit>();
 
@@ -60,6 +61,7 @@ public sealed class KuechenfuchsDbContext(
             entity.Property(recipe => recipe.CreatedAt).IsRequired();
             entity.Property(recipe => recipe.UpdatedAt).IsRequired();
             entity.HasIndex(recipe => new { recipe.HouseholdId, recipe.Name });
+            entity.HasAlternateKey(recipe => new { recipe.HouseholdId, recipe.Id });
             entity.HasOne(recipe => recipe.Household)
                 .WithMany()
                 .HasForeignKey(recipe => recipe.HouseholdId)
@@ -95,6 +97,16 @@ public sealed class KuechenfuchsDbContext(
             entity.HasOne(step => step.Recipe)
                 .WithMany(recipe => recipe.Steps)
                 .HasForeignKey(step => step.RecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RecipeFavorite>(entity =>
+        {
+            entity.HasKey(favorite => new { favorite.HouseholdId, favorite.RecipeId });
+            entity.HasOne<Recipe>()
+                .WithMany(recipe => recipe.Favorites)
+                .HasForeignKey(favorite => new { favorite.HouseholdId, favorite.RecipeId })
+                .HasPrincipalKey(recipe => new { recipe.HouseholdId, recipe.Id })
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

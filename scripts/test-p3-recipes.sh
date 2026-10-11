@@ -119,6 +119,25 @@ recipe_id="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).id)' "$(c
 etag="$(grep -i '^ETag:' "$response_headers" | tr -d '\r' | cut -d' ' -f2-)"
 [[ -n "$etag" ]] || fail "Recipe creation did not return an ETag."
 
+status="$(request --cookie "$cookie_jar" --request PUT \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 400 "$status" "Favorite write without CSRF token"
+status="$(request --cookie "$cookie_jar" --header 'X-KF-CSRF: invalid-token' --request PUT \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 400 "$status" "Favorite write with invalid CSRF token"
+status="$(request --cookie "$cookie_jar" --header "X-KF-CSRF: $csrf_token" --request PUT \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 204 "$status" "Favorite creation"
+status="$(request --cookie "$cookie_jar" --header "X-KF-CSRF: $csrf_token" --request PUT \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 204 "$status" "Idempotent favorite creation"
+status="$(request --cookie "$cookie_jar" "$base_url/api/v1/households/$household_id/recipe-favorites")"
+assert_status 200 "$status" "Favorite list"
+node -e 'const ids=JSON.parse(process.argv[1]); if(ids.length!==1||ids[0]!==process.argv[2])process.exit(1)' "$(cat "$response_body")" "$recipe_id" \
+  || fail "Favorite was not listed exactly once."
+status="$(request --cookie "$cookie_jar" "$base_url/api/v1/households/$other_household_id/recipe-favorites")"
+assert_status 404 "$status" "Cross-household favorite list"
+
 status="$(request --cookie "$cookie_jar" --header 'Content-Type: application/json' \
   --header "If-Match: $etag" --request PUT --data "$recipe_json" \
   "$base_url/api/v1/households/$household_id/recipes/$recipe_id")"
@@ -203,6 +222,24 @@ status="$(request --cookie "$cookie_jar" "$base_url/api/v1/households/$household
 assert_status 200 "$status" "Recipe persistence after API restart"
 node -e 'if(!["Updated by request A","Updated by request B"].includes(JSON.parse(process.argv[1]).description))process.exit(1)' "$(cat "$response_body")" \
   || fail "The updated recipe did not persist across restart."
+status="$(request --cookie "$cookie_jar" "$base_url/api/v1/households/$household_id/recipe-favorites")"
+assert_status 200 "$status" "Favorite persistence after API restart"
+node -e 'const ids=JSON.parse(process.argv[1]); if(ids.length!==1||ids[0]!==process.argv[2])process.exit(1)' "$(cat "$response_body")" "$recipe_id" \
+  || fail "Household favorite did not persist across API restart."
+
+status="$(request --cookie "$cookie_jar" --request DELETE \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 400 "$status" "Favorite removal without CSRF token"
+status="$(request --cookie "$cookie_jar" --header 'X-KF-CSRF: invalid-token' --request DELETE \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 400 "$status" "Favorite removal with invalid CSRF token"
+status="$(request --cookie "$cookie_jar" --header "X-KF-CSRF: $csrf_token" --request DELETE \
+  "$base_url/api/v1/households/$household_id/recipes/$recipe_id/favorite")"
+assert_status 204 "$status" "Favorite removal"
+status="$(request --cookie "$cookie_jar" "$base_url/api/v1/households/$household_id/recipe-favorites")"
+assert_status 200 "$status" "Empty favorite list after removal"
+node -e 'if(JSON.parse(process.argv[1]).length!==0)process.exit(1)' "$(cat "$response_body")" \
+  || fail "Favorite remained after removal."
 
 status="$(request --cookie "$cookie_jar" --header "X-KF-CSRF: $csrf_token" \
   --header "If-Match: $updated_etag" --request DELETE \
