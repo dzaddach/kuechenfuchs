@@ -27,8 +27,8 @@ import { IconComponent } from './shared/icon.component';
           <div class="sidebar-note">
             <span class="note-mark"><app-icon name="sparkles" /></span>
             <strong>Eine Prise Inspiration?</strong>
-            <p>Dein KI-Rezeptassistent kommt bald in deine Küche.</p>
-            <span class="coming-soon">Demnächst</span>
+            <p>Aus deinen Zutaten wird ein persönlicher Rezeptentwurf.</p>
+            <a class="coming-soon" routerLink="/ai/recipe">KI-Rezeptassistent öffnen</a>
           </div>
           <div class="sidebar-footer"><span class="demo-dot"></span> DEMO-INHALTE</div>
         </aside>

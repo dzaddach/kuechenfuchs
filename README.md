@@ -12,7 +12,9 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 **P2 – Anmeldung und Haushaltszugriff:** Abgeschlossen und nach `main` gemergt.
 
-**P3 – Manuelle Rezeptverwaltung:** Implementierung auf `feature/p3-recipes`; noch nicht gemergt. Rezepte werden haushaltsbezogen in PostgreSQL gespeichert und können gesucht, bearbeitet und archiviert werden.
+**P3 – Manuelle Rezeptverwaltung:** Abgeschlossen und nach `main` gemergt. Rezepte werden haushaltsbezogen in PostgreSQL gespeichert und können gesucht, gelesen, bearbeitet, favorisiert und archiviert werden.
+
+**P4 – KI-Rezeptentwurf:** Implementierung auf `feature/p4-ai-recipes`; nicht gemergt. Der serverseitige OpenAI-Adapter liefert validierte, ungespeicherte Entwürfe, die vor dem Speichern bearbeitet und ausdrücklich übernommen werden müssen.
 
 ## Zielbild
 
@@ -27,7 +29,7 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 Die Architektur und der Implementierungsplan wurden geprüft. Arbeitspakete benötigen jeweils eine ausdrückliche Freigabe.
 
-## Lokale Entwicklung (P0–P3)
+## Lokale Entwicklung (P0–P4)
 
 Voraussetzungen: Docker mit Docker Compose v2.29 oder neuer. Die Entwicklung läuft über Compose; PostgreSQL erhält keinen Host-Port. Caddy ist lokal standardmäßig unter `http://localhost:8080` erreichbar und benötigt weder öffentliche Domain noch öffentliches TLS-Zertifikat. Ist Port 8080 belegt, `HTTP_PORT` in `.env` ändern.
 
@@ -54,7 +56,7 @@ Der API-Dienst enthält diese Bootstrap-Variablen grundsätzlich nicht. Das Date
 
 Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Migrationen und Backups siehe [docs/deployment.md](docs/deployment.md).
 
-Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`, P2-Authentifizierungstests mit `./scripts/test-p2-auth.sh` und P3-Rezepttests mit `bash scripts/test-p3-recipes.sh`. Die Skripte bauen und starten einen isolierten Test-Stack und entfernen ihn danach wieder.
+Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`, P2-Authentifizierungstests mit `./scripts/test-p2-auth.sh`, P3-Rezepttests mit `bash scripts/test-p3-recipes.sh` und P4-KI-Tests mit `bash scripts/test-p4-ai-recipes.sh`. Die Skripte bauen und starten isolierte Test-Stacks und entfernen sie samt Testvolumes danach wieder. Die P4-Prüfung sendet ausschließlich an den lokalen Fake-Provider.
 
 ## Anmeldung und Rezeptverwaltung lokal prüfen
 
@@ -95,6 +97,18 @@ bash scripts/test-p3-recipes.sh
 ```
 
 Der P3-Test prüft Migrationen auf einer frischen Datenbank, Anmeldung, CSRF-Negativfälle für Rezept- und Favoritenschreibzugriffe, Favoritenpersistenz nach API-Neustart, Haushaltsisolation, Suche, Mengen-/Einheitenvalidierung, ETag-Konflikte, Archivierung und Rezeptpersistenz. Testdaten und Bootstrap-Zugangsdaten sind temporär und werden durch das Skript bereinigt.
+
+### KI-Rezeptentwürfe (P4)
+
+KI-Rezeptentwürfe sind standardmäßig deaktiviert. Für eine reale lokale OpenAI-Anfrage in `.env` `AI_ENABLED=true`, einen serverseitigen `OPENAI_API_KEY`, das Modell, die aktuellen Tokenpreise und ein bewusst gewähltes Monatsbudget konfigurieren. API-Key und Preise niemals in Angular, Git oder normale Logs geben. Das Anfangsmodell `gpt-4.1-mini` und alle Limits sind austauschbar; die vollständige Konfiguration, Datenschutzgrenzen und Quellen stehen in [docs/ai-integration.md](docs/ai-integration.md).
+
+Die P4-Tests erfordern keinen API-Key und rufen keinen externen Provider auf:
+
+```sh
+bash scripts/test-p4-ai-recipes.sh
+```
+
+Manuelle Prüfung: anmelden, **Meine Rezepte → Mit KI entwerfen** öffnen, nur nicht-sensitive Eingaben angeben und die Drittanbieterinformation ausdrücklich bestätigen. Nach der Generierung alle Felder im Rezepteditor prüfen/ändern; erst **Rezept übernehmen** speichert über die normale Rezept-API. Ein KI-Entwurf allein darf die Rezeptliste nicht verändern.
 
 ### P3-Prüfergebnis (11. Oktober 2026)
 

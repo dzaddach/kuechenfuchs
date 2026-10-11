@@ -1,4 +1,4 @@
-name: P0 smoke tests
+name: P0 smoke and P4 integration tests
 
 on:
   push:
@@ -19,3 +19,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and smoke-test P0
         run: ./scripts/test-p0.sh
+      - name: Test P4 AI drafts with the local fake provider
+        run: bash scripts/test-p4-ai-recipes.sh

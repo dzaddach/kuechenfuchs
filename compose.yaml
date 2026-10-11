@@ -32,6 +32,20 @@ services:
       Database__GssEncryptionMode: Disable
       Authentication__CookieLifetimeSeconds: ${AUTH_COOKIE_LIFETIME_SECONDS:-28800}
       DataProtection__KeysPath: /var/lib/kuechenfuchs/keys
+      Ai__Enabled: ${AI_ENABLED:-false}
+      Ai__RequestsPerMinutePerUser: ${AI_REQUESTS_PER_MINUTE_PER_USER:-8}
+      Ai__MaxMonthlyRequestsPerHousehold: ${AI_MAX_MONTHLY_REQUESTS_PER_HOUSEHOLD:-100}
+      Ai__MonthlyBudgetUsd: ${AI_MONTHLY_BUDGET_USD:-0}
+      Ai__MaxInputTokens: ${AI_MAX_INPUT_TOKENS:-16000}
+      Ai__MaxOutputTokens: ${AI_MAX_OUTPUT_TOKENS:-1500}
+      Ai__TimeoutSeconds: ${AI_TIMEOUT_SECONDS:-30}
+      Ai__ReservationExpirationSeconds: ${AI_RESERVATION_EXPIRATION_SECONDS:-180}
+      Ai__MaxPromptCharacters: ${AI_MAX_PROMPT_CHARACTERS:-2000}
+      Ai__InputUsdPerMillionTokens: ${AI_INPUT_USD_PER_MILLION_TOKENS:-0}
+      Ai__OutputUsdPerMillionTokens: ${AI_OUTPUT_USD_PER_MILLION_TOKENS:-0}
+      Ai__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      Ai__OpenAI__Model: ${OPENAI_MODEL:-gpt-4.1-mini}
+      Ai__OpenAI__BaseUrl: ${OPENAI_BASE_URL:-}
     volumes:
       - aspnet_data_protection:/var/lib/kuechenfuchs/keys
     depends_on:

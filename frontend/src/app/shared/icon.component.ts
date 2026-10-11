@@ -4,7 +4,7 @@ export type IconName =
   | 'leaf' | 'calendar' | 'book' | 'checklist' | 'tag' | 'settings' | 'sparkles'
   | 'moon' | 'sun' | 'search' | 'plus' | 'heart' | 'clock' | 'users' | 'arrow'
   | 'filter' | 'close' | 'check' | 'chevron' | 'back' | 'pot' | 'shopping'
-  | 'download' | 'info' | 'globe' | 'shield' | 'edit' | 'send' | 'logout';
+  | 'download' | 'info' | 'globe' | 'shield' | 'edit' | 'send' | 'logout' | 'lock';
 
 @Component({
   selector: 'app-icon',
@@ -41,6 +41,7 @@ export type IconName =
         @case ('edit') { <path d="m15 5 4 4M4 20l4-.8L19 8a2.8 2.8 0 0 0-4-4L4 15z"/> }
         @case ('send') { <path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13"/> }
         @case ('logout') { <path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/> }
+        @case ('lock') { <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v3"/> }
       }
     </svg>
   `,

@@ -9,6 +9,9 @@ frontend/dist/
 frontend/.angular/
 npm-debug.log*
 
+# Python test artifacts
+__pycache__/
+
 # .NET
 **/bin/
 **/obj/

@@ -11,7 +11,10 @@ import { RecipeApiService, RecipeSummary } from '../recipes/recipe-api.service';
     <section class="page-heading">
       <div><p class="eyebrow">DEINE SAMMLUNG</p><h1>Meine Rezepte<span class="count">{{ recipes().length }}</span></h1>
         <p class="intro">Alle deine Lieblingsgerichte an einem guten Ort.</p></div>
-      <a class="primary-button" routerLink="/recipes/new"><app-icon name="plus" /> Neues Rezept</a>
+        <div class="heading-actions">
+          <a class="ai-button" routerLink="/ai/recipe"><app-icon name="sparkles" /> Mit KI entwerfen</a>
+          <a class="primary-button" routerLink="/recipes/new"><app-icon name="plus" /> Neues Rezept</a>
+        </div>
     </section>
     <div class="toolbar">
       <label class="search-field"><app-icon name="search" />

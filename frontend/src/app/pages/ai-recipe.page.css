@@ -1,0 +1,44 @@
+.back-link { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 25px; color: var(--muted); font-size: 12px; font-weight: 650; text-decoration: none; }
+.back-link app-icon { width: 16px; height: 16px; }
+.assistant-heading { max-width: 720px; margin: 0 auto 25px; text-align: center; }
+.assistant-mark { display: grid; width: 48px; height: 48px; margin: 0 auto 15px; place-items: center; border-radius: 16px; color: var(--green); background: var(--green-wash); }
+.assistant-mark app-icon { width: 23px; height: 23px; }
+.eyebrow { margin: 0 0 8px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 8px; font-family: Manrope, sans-serif; font-size: clamp(28px, 4vw, 38px); letter-spacing: -1px; }
+.assistant-heading > p:last-child { margin-bottom: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.assistant-form { display: grid; max-width: 800px; gap: 15px; margin: 0 auto; }
+.assistant-card, .privacy-card { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.assistant-card > label, .field > label { display: block; margin-bottom: 8px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.assistant-card > label > span { color: #b85b53; }
+.assistant-form textarea, .assistant-form input[type="text"], .assistant-form input[type="number"] { width: 100%; min-height: 46px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--canvas); font: inherit; font-size: 13px; }
+.assistant-form textarea { resize: vertical; line-height: 1.6; }
+.assistant-form :focus-visible { outline: 3px solid color-mix(in srgb, var(--green) 38%, transparent); outline-offset: 2px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 18px; }
+.field { min-width: 0; }
+.field small { display: block; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.optional { color: var(--muted); font-size: 10px; font-weight: 500; }
+h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-family: Manrope, sans-serif; font-size: 15px; }
+.preference-options { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 19px; }
+.preference-options label { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--canvas); font-size: 11px; font-weight: 650; }
+.preference-options input, .consent input { width: 18px; height: 18px; accent-color: var(--green); }
+.field + .field { margin-top: 16px; }
+.privacy-card { border-color: color-mix(in srgb, var(--green) 23%, var(--line)); background: color-mix(in srgb, var(--green-wash) 42%, var(--surface)); }
+.privacy-card h2 { color: var(--green); }
+.privacy-card h2 app-icon { width: 17px; height: 17px; }
+.privacy-card > p { margin-bottom: 15px; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.consent { display: flex; align-items: start; gap: 10px; color: var(--ink); font-size: 11px; font-weight: 650; line-height: 1.55; }
+.consent input { flex: none; margin: 1px 0 0; }
+.generate-button { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 14px; color: #fffdf7; background: var(--green); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.generate-button:hover:not(:disabled) { background: var(--green-dark); }
+.generate-button:disabled { opacity: .55; cursor: not-allowed; }
+.generate-button app-icon { width: 18px; height: 18px; }
+.loading-message, .no-save-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: center; }
+.error-message { margin: 0; padding: 12px 14px; border-radius: 12px; color: #9f433e; background: #f9ece9; font-size: 12px; }
+@media (max-width: 600px) {
+  .assistant-heading { margin-bottom: 20px; text-align: left; }
+  .assistant-mark { margin-left: 0; }
+  .assistant-card, .privacy-card { padding: 17px; border-radius: 16px; }
+  .field-row { grid-template-columns: 1fr; }
+  .preference-options { display: grid; grid-template-columns: 1fr 1fr; }
+}
