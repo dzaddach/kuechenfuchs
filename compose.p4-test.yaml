@@ -4,7 +4,7 @@ services:
       Ai__Enabled: "true"
       Ai__RequestsPerMinutePerUser: "50"
       Ai__MaxMonthlyRequestsPerHousehold: "100"
-      Ai__MonthlyBudgetUsd: "0.007"
+      Ai__MonthlyBudgetUsd: "0.0073"
       Ai__MaxInputTokens: "16000"
       Ai__MaxOutputTokens: "1500"
       Ai__TimeoutSeconds: "8"
