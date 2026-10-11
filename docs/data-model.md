@@ -15,8 +15,9 @@
 | Entität | Wesentliche Felder / Zweck | Beziehungen |
 |---|---|---|
 | `User` | interne ID, Anmeldeidentität, Status, Zeitstempel | Mitglied in einem oder mehreren Haushalten |
-| `ExternalOAuthClient` | registrierter Client/Redirect-URI-Allowlist, erlaubte Scopes, Status | kontrolliert OAuth-Zugriff für ChatGPT Actions; Client-Secrets ausschließlich geschützt verwalten |
-| `OAuthGrant` | Benutzer, Haushalt, Client, gewährte Scopes, Ablauf-/Widerrufszeitpunkt, gehashte Tokenreferenzen | bindet jeden externen Zugriff an genau den zustimmenden Benutzer und Haushalt |
+| `ExternalIdentityLink` (P5a.1) | `Issuer`, `Subject`, `UserId`, `HouseholdId`, `CreatedAt`, `RevokedAt`, `RevokedReason` | bindet eine Keycloak-Identität an genau einen Benutzer und genau einen bewusst gewählten Haushalt; eindeutig `(Issuer, Subject)` und `(UserId, Issuer)` jeweils unter aktiven Verknüpfungen (gefilterte Unique-Indizes); widerrufene Zeilen bleiben zur Nachvollziehbarkeit |
+| `ExternalIdentityLinkRequest` (P5a.1) | `UserId`, `HouseholdId`, SHA-256 von `state`, `nonce` und Browserbindung, per Data Protection geschützter PKCE-Verifier, `ExpiresAt`, `ConsumedAt` | einmaliger Verknüpfungsversuch; höchstens eine offene Anfrage je Benutzer, wird vor jeder weiteren Prüfung atomar verbraucht |
+| OAuth-Clients und Grants | in Keycloak (eigene Datenbank `keycloak`) | Client-Redirects, Scopes, Sitzungen und Tokens verwaltet Keycloak; Küchenfuchs speichert keine Tokens |
 | `Household` | ID, Name, Standardregion/Filialauswahl optional, Zeitstempel | besitzt Rezepte, Wochenpläne, Listen und Einstellungen |
 | `HouseholdMember` | Haushalt, Benutzer, Rolle, Status | eindeutige Mitgliedschaft; Autorisierung jeder Haushaltsressource |
 | `Recipe` | ID, Haushalt, Name, Beschreibung, Basisportionen, Status, Zeitstempel/Concurrency-Version | enthält Zutatenzeilen, Schritte und Tags |
@@ -78,7 +79,7 @@ Automatisch aggregieren darf die API nur, wenn das normalisierte Lebensmittel id
 
 - UUIDs oder vergleichbare nicht erratbare IDs; Fremdschlüssel und eindeutige Constraints für Haushaltsmitgliedschaften, stabile Produkt-IDs und Referenzen.
 - Haushaltszugriff ist eine API-Autorisierungsregel und zusätzlich durch gezielte Abfragen zu begrenzen; IDs allein sind kein Berechtigungsnachweis.
-- ChatGPT-OAuth-Grants speichern nur minimale Scopes, Benutzer-/Haushaltsbindung, Ablauf und Widerrufsstatus. Tokens sind vertrauliche Authentifizierungsdaten und dürfen nicht in Logs erscheinen; die konkrete Speicherung folgt dem gewählten gepflegten OAuth/OIDC-Baustein.
+- Externe Identitäten werden nie über E-Mail-Adressen zugeordnet; maßgeblich ist nur `(Issuer, Subject)` aus einem verifizierten ID-Token einer ausdrücklichen Verknüpfung. Küchenfuchs speichert weder Access-, Refresh- noch ID-Tokens; Tokens und Secrets dürfen nicht in Logs erscheinen. Migration: `AddExternalIdentityLinks`.
 - Rezept-/Listenänderungen erhalten eine Concurrency-Version (`rowversion`-ähnliche Anwendungs- oder ETag-Version), damit Geräteänderungen nicht still überschreiben.
 - Angebotsrohtexte und Quellenbelege nur so lange und so umfangreich speichern, wie es für Nachvollziehbarkeit, Fehleranalyse und rechtmäßige Nutzung notwendig ist.
 - Keine Speicherung kompletter Chatverläufe oder sensibler KI-Prompts standardmäßig; KI-Nutzung und Speichervorgang sind getrennt.

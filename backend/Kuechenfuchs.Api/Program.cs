@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Kuechenfuchs.Api.Ai;
 using Kuechenfuchs.Api.Data;
+using Kuechenfuchs.Api.ExternalIdentity;
 using Kuechenfuchs.Api.Identity;
 using Kuechenfuchs.Api.Recipes;
 using Microsoft.AspNetCore.Antiforgery;
@@ -122,6 +123,7 @@ if (!string.IsNullOrWhiteSpace(dataProtectionPath))
 }
 
 builder.Services.AddAuthorization();
+var keycloakEnabled = builder.AddKeycloakIntegration();
 builder.Services.AddRateLimiter(options =>
 {
     var aiRequestsPerMinute = builder.Configuration.GetValue("Ai:RequestsPerMinutePerUser", 8);
@@ -313,6 +315,12 @@ auth.MapPost(
 var api = app.MapGroup("/api/v1").RequireAuthorization();
 api.MapRecipeEndpoints();
 api.MapAiRecipeEndpoints();
+if (keycloakEnabled)
+{
+    api.MapExternalIdentityLinkEndpoints();
+    app.MapChatGptBearerEndpoints();
+}
+
 api.MapGet(
     "/me",
     async Task<IResult> (ClaimsPrincipal principal, KuechenfuchsDbContext database) =>

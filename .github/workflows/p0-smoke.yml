@@ -1,4 +1,4 @@
-name: P0 smoke and P4 integration tests
+name: P0 smoke, P4 and P5a.1 integration tests
 
 on:
   push:
@@ -21,3 +21,5 @@ jobs:
         run: ./scripts/test-p0.sh
       - name: Test P4 AI drafts with the local fake provider
         run: bash scripts/test-p4-ai-recipes.sh
+      - name: Test P5a.1 Keycloak linking and bearer authentication
+        run: bash scripts/test-p5a-keycloak.sh
