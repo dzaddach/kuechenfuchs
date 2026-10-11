@@ -93,6 +93,80 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.Food", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Foods");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc001"),
+                            Category = "Trockenwaren",
+                            Name = "Nudeln"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc002"),
+                            Category = "Gemüse",
+                            Name = "Tomaten"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc003"),
+                            Category = "Gemüse",
+                            Name = "Zwiebeln"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc004"),
+                            Category = "Backen",
+                            Name = "Mehl"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc005"),
+                            Category = "Käse",
+                            Name = "Parmesan"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc006"),
+                            Category = "Öl und Essig",
+                            Name = "Olivenöl"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc007"),
+                            Category = "Milchprodukte",
+                            Name = "Naturjoghurt"
+                        },
+                        new
+                        {
+                            Id = new Guid("e6a9a2a5-a9e5-4be2-bcdf-31d3c55bc008"),
+                            Category = "Gemüse",
+                            Name = "Karotten"
+                        });
+                });
+
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.Household", b =>
                 {
                     b.Property<Guid>("Id")
@@ -133,6 +207,197 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("HouseholdMembers");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.Recipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BaseServings")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(90)
+                        .HasColumnType("character varying(90)");
+
+                    b.Property<int>("PreparationMinutes")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<string[]>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId", "Name");
+
+                    b.ToTable("Recipes");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeIngredient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Amount")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
+
+                    b.Property<Guid?>("FoodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UnitCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodId");
+
+                    b.HasIndex("UnitCode");
+
+                    b.HasIndex("RecipeId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("RecipeIngredients");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipeId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("RecipeSteps");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.Unit", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Dimension")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("Units");
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "g",
+                            Dimension = "mass",
+                            Name = "Gramm"
+                        },
+                        new
+                        {
+                            Code = "kg",
+                            Dimension = "mass",
+                            Name = "Kilogramm"
+                        },
+                        new
+                        {
+                            Code = "ml",
+                            Dimension = "volume",
+                            Name = "Milliliter"
+                        },
+                        new
+                        {
+                            Code = "l",
+                            Dimension = "volume",
+                            Name = "Liter"
+                        },
+                        new
+                        {
+                            Code = "piece",
+                            Dimension = "count",
+                            Name = "Stück"
+                        },
+                        new
+                        {
+                            Code = "tbsp",
+                            Dimension = "volume",
+                            Name = "Esslöffel"
+                        },
+                        new
+                        {
+                            Code = "tsp",
+                            Dimension = "volume",
+                            Name = "Teelöffel"
+                        },
+                        new
+                        {
+                            Code = "pinch",
+                            Dimension = "count",
+                            Name = "Prise"
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
@@ -284,6 +549,52 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.Recipe", b =>
+                {
+                    b.HasOne("Kuechenfuchs.Api.Identity.Household", "Household")
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Household");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeIngredient", b =>
+                {
+                    b.HasOne("Kuechenfuchs.Api.Identity.Food", "Food")
+                        .WithMany()
+                        .HasForeignKey("FoodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Kuechenfuchs.Api.Identity.Recipe", "Recipe")
+                        .WithMany("Ingredients")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Kuechenfuchs.Api.Identity.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitCode")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Food");
+
+                    b.Navigation("Recipe");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.RecipeStep", b =>
+                {
+                    b.HasOne("Kuechenfuchs.Api.Identity.Recipe", "Recipe")
+                        .WithMany("Steps")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipe");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
@@ -338,6 +649,13 @@ namespace Kuechenfuchs.Api.Data.Migrations
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.Household", b =>
                 {
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.Recipe", b =>
+                {
+                    b.Navigation("Ingredients");
+
+                    b.Navigation("Steps");
                 });
 #pragma warning restore 612, 618
         }

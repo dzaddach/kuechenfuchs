@@ -1,66 +1,91 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { AuthService } from '../auth/auth.service';
+import { RecipeApiService, RecipeSummary } from '../recipes/recipe-api.service';
 import { RecipesPage } from './recipes.page';
 
+const recipe: RecipeSummary = {
+  id: 'r1',
+  name: 'Cremige Zitronenpasta',
+  description: 'Frisch und schnell.',
+  baseServings: 2,
+  preparationMinutes: 20,
+  category: 'Abendessen',
+  tags: ['vegetarisch'],
+  isArchived: false,
+  version: 'v1',
+};
+
 describe('RecipesPage', () => {
-  it('searches demo recipes by ingredient', async () => {
+  it('loads household recipes and searches by ingredient', async () => {
+    const list = vi.fn(async (_household: string, query = '') => query ? [recipe] : [recipe]);
     await TestBed.configureTestingModule({
       imports: [RecipesPage],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { session: () => ({ households: [{ householdId: 'h1' }] }) } },
+        { provide: RecipeApiService, useValue: { list } },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(RecipesPage);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(1);
+
     const search = fixture.nativeElement.querySelector('input[type="search"]') as HTMLInputElement;
     search.value = 'zitrone';
     search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(1);
     expect(fixture.nativeElement.textContent).toContain('Cremige Zitronenpasta');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(list).toHaveBeenCalledWith('h1', 'zitrone');
   });
 
-  it('filters favorites and supports empty-state recovery', async () => {
+  it('shows an explicit empty state when the API has no recipes', async () => {
     await TestBed.configureTestingModule({
       imports: [RecipesPage],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { session: () => ({ households: [{ householdId: 'h1' }] }) } },
+        { provide: RecipeApiService, useValue: { list: vi.fn(async () => []) } },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(RecipesPage);
     fixture.detectChanges();
-    const favorites = fixture.nativeElement.querySelector('.filter-button') as HTMLButtonElement;
-    favorites.click();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(1);
-
-    const search = fixture.nativeElement.querySelector('input[type="search"]') as HTMLInputElement;
-    search.value = 'does not exist';
-    search.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.empty-state')).not.toBeNull();
-    (fixture.nativeElement.querySelector('.secondary-button') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(4);
+    expect(fixture.nativeElement.textContent).toContain('Deine Sammlung beginnt hier');
   });
 
-  it('opens an accessible recipe dialog and closes it with Escape', async () => {
+  it('keeps client favorites and category filtering available', async () => {
+    const vegetarianRecipe = { ...recipe, category: 'Vegetarisch' };
     await TestBed.configureTestingModule({
       imports: [RecipesPage],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { session: () => ({ households: [{ householdId: 'h1' }] }) } },
+        { provide: RecipeApiService, useValue: { list: vi.fn(async () => [vegetarianRecipe]) } },
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(RecipesPage);
     fixture.detectChanges();
-    const trigger = fixture.nativeElement.querySelector('.recipe-title') as HTMLButtonElement;
-    trigger.click();
+    await fixture.whenStable();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('[role="dialog"]')).not.toBeNull();
-
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    (fixture.nativeElement.querySelector('.favorite-button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    await Promise.resolve();
-    expect(fixture.nativeElement.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
+    (fixture.nativeElement.querySelector('.filter-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(1);
+    const vegetarianTab = [...fixture.nativeElement.querySelectorAll('.category-tab')]
+      .find((button: HTMLButtonElement) => button.textContent.trim() === 'Vegetarisch') as HTMLButtonElement;
+    vegetarianTab.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.recipe-card')).toHaveLength(1);
   });
 });
