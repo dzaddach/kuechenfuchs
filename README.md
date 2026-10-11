@@ -8,7 +8,9 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 **P0 – lokale Compose-Basis:** Abgeschlossen und nach `main` gemergt.
 
-**P1 – iPhone-first UI-Grundlage:** In Arbeit auf `feature/p1-ui`; die Rezepte sind Beispieldaten im nicht-persistenten Demo-Modus.
+**P1 – iPhone-first UI-Grundlage:** Abgeschlossen und nach `main` gemergt. Rezepte und Editor waren zunächst Beispieldaten im nicht-persistenten Demo-Modus.
+
+**P2 – Anmeldung und Haushaltszugriff:** Implementierung auf `feature/p2-auth`; noch nicht gemergt. Die Login-Seite ist aktiv. Die Rezeptansichten bleiben bis P3 Demo-Inhalte und werden nicht persistiert.
 
 ## Zielbild
 
@@ -23,20 +25,27 @@ Küchenfuchs ist eine geplante selbst gehostete Progressive Web App zur Rezeptve
 
 Die Architektur und der Implementierungsplan wurden geprüft. Arbeitspakete benötigen jeweils eine ausdrückliche Freigabe.
 
-## Lokale Entwicklung (P0)
+## Lokale Entwicklung (P0/P2)
 
 Voraussetzungen: Docker mit Docker Compose v2.29 oder neuer. Die Entwicklung läuft über Compose; PostgreSQL erhält keinen Host-Port. Caddy ist lokal standardmäßig unter `http://localhost:8080` erreichbar und benötigt weder öffentliche Domain noch öffentliches TLS-Zertifikat. Ist Port 8080 belegt, `HTTP_PORT` in `.env` ändern.
 
 ```sh
 cp .env.example .env
+# .env lokal befüllen: INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD,
+# INITIAL_HOUSEHOLD_NAME und POSTGRES_PASSWORD setzen.
+# INITIAL_ADMIN_PASSWORD muss mindestens 14 Zeichen haben und Groß-/Kleinbuchstaben,
+# Zahl sowie Sonderzeichen enthalten. Beispielwert erzeugen:
+openssl rand -base64 32
 docker compose up --build --detach
 ```
 
-Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Logs und automatisierte P0-Tests siehe [docs/deployment.md](docs/deployment.md).
+Beim ersten Start werden Migrationen ausgeführt und genau ein Initialadministrator sowie der erste Haushalt angelegt. Ohne vollständige `INITIAL_ADMIN_*`-/Haushaltskonfiguration startet die leere Entwicklungsdatenbank nicht erfolgreich. Die Bootstrap-Zugangsdaten werden nur bei leerer Benutzertabelle verwendet; Änderungen an `.env` ändern ein bestehendes Passwort nicht. `.env` ist lokal und darf nicht committet werden.
 
-Die P0-Smoke-Tests lassen sich mit `./scripts/test-p0.sh` ausführen. Sie bauen die Images, starten einen isolierten Test-Stack und entfernen diesen danach wieder.
+Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Migrationen und Backups siehe [docs/deployment.md](docs/deployment.md).
 
-## Oberfläche lokal prüfen (P1)
+Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`; P2-Authentifizierungstests mit `./scripts/test-p2-auth.sh`. Beide Skripte bauen und starten einen isolierten Test-Stack und entfernen ihn danach wieder.
+
+## Anmeldung und Oberfläche lokal prüfen (P2)
 
 Die empfohlene Ansicht läuft im vollständigen Stack hinter Caddy. Falls `.env` noch nicht vorhanden ist, zuerst `cp .env.example .env` ausführen und ausschließlich das lokale Beispielkennwort verwenden.
 
@@ -67,7 +76,7 @@ npm run build
 npm test
 ```
 
-Die Navigation, Rezepte und der Editor sind im Demo-Modus bedienbar; Rezeptänderungen werden nicht gespeichert. Die Service-Worker-Registrierung ist im Development-Server deaktiviert. Der Produktionsbuild über Compose liefert Manifest, Icons und einen Service Worker für App-Shell und statische Dateien aus, jedoch keine Offline-Datensynchronisation. Auf iPhone/iPad wird die Installation in Safari über „Zum Home-Bildschirm“ angeboten; Installation auf einem echten Gerät setzt einen sicheren HTTPS-Ursprung voraus. Das lokale Compose-Setup nutzt HTTP und eignet sich daher nicht als iOS-Installationsziel.
+Die Navigation, Rezepte und der Editor sind weiterhin im Demo-Modus bedienbar; Rezeptänderungen werden nicht gespeichert. Der Login verwendet serverseitige ASP.NET-Core-Identity-Cookies mit CSRF-Schutz. Die Service-Worker-Registrierung ist im Development-Server deaktiviert. Der Produktionsbuild über Compose liefert Manifest, Icons und einen Service Worker für App-Shell und statische Dateien aus, jedoch keine Offline-Datensynchronisation. Auf iPhone/iPad wird die Installation in Safari über „Zum Home-Bildschirm“ angeboten; Installation auf einem echten Gerät setzt einen sicheren HTTPS-Ursprung voraus. Das lokale Compose-Setup nutzt HTTP und eignet sich daher nicht als iOS-Installationsziel.
 
 Responsive Kontrolle: Browser-Viewport auf **390 × 844 px** (iPhone-Größe) und auf mindestens **1280 × 800 px** (Desktop) stellen. Auf Mobilgeräten die Navigation unten, Safe-Area-Abstände, Rezeptkarten und den Editor prüfen. Unter Desktop sollte die Seitenleiste angezeigt werden. Es werden keine externen kostenpflichtigen APIs oder Remote-Foodbilder geladen.
 

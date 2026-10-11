@@ -1,0 +1,9 @@
+using Microsoft.AspNetCore.Identity;
+
+namespace Kuechenfuchs.Api.Identity;
+
+public sealed class ApplicationUser : IdentityUser<Guid>
+{
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public bool IsEnabled { get; set; } = true;
+}

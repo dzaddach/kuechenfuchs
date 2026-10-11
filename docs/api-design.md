@@ -50,8 +50,32 @@ Das MVP kann Pläne zunächst nur im UI oder als vereinfachte Tabelle führen, w
 - Für belastbare Bestätigung kann ein kurzlebiger, benutzergebundener Entwurf erzeugt und erst in einem separaten finalen Aufruf gespeichert werden. Entwürfe laufen ab und sind keine dauerhaft gespeicherten Rezepte.
 - Authentifizierung nutzerbezogen über OAuth 2.0 Authorization Code; eng begrenzte Scopes wie `recipes:read` und `recipes:write`. Keine Haushalts-übergreifenden Sammelkonten oder globalen Bearer-Schlüssel.
 - Token kurzlebig, widerrufbar und gehasht gespeichert; `state`, feste Redirect-URI-Allowlist, Rate Limits und Audit-Ereignis für Speichervorgänge.
-- OAuth-Endpunkte nicht selbst von Grund auf programmieren. Vor der Festlegung eine gepflegte OAuth/OIDC-Komponente oder einen etablierten Identity Provider auf ChatGPT-Action-Kompatibilität prüfen und die aktuell unterstützten Flows dokumentieren.
+- Küchenfuchs implementiert keinen eigenen OAuth-/OIDC-Autorisierungsserver. P2 verwendet ASP.NET Core Identity ausschließlich für den PWA-Login und die Same-Origin-Cookie-Session; daraus folgt keine ChatGPT-Actions-OAuth-Kompatibilität.
+- Für Actions wird als Kandidat ein bestehender OIDC-Provider wie Keycloak geprüft. Er muss den für Actions benötigten Authorization-Code-Ablauf mit Client-Authentifizierung, freigegebenen Redirect-URIs, `state` und nutzerbezogenen Zugriffstokens unterstützen. Die Verfügbarkeit der Funktion in einem Produkt allein belegt noch keine Kompatibilität: vor Freigabe von P5a ist der konkrete Provider mit ChatGPT Actions praktisch end-to-end zu testen.
+- Ein späterer Provider-Wechsel erfordert eine sichere Kontoverknüpfung zwischen der externen OIDC-Identität (`issuer` + `subject`) und dem internen Küchenfuchs-Benutzer. Die API leitet Benutzer- oder Haushaltsrechte niemals ungeprüft aus vom Client gelieferten IDs ab. Haushaltszuordnung und erlaubte Scopes werden serverseitig geprüft; Logout/Widerruf und Ablauf müssen Folgeaufrufe sperren.
+- Der Action-Bearer-Token ist ausschließlich für die Küchenfuchs-API bestimmt. Vor der Autorisierung prüft die API Signatur anhand der vertrauenswürdigen Issuer-Metadaten/JWKS sowie exaktes `iss`, `aud`, `exp`/`nbf` und die erforderlichen Scopes; Schlüsselrotation muss unterstützt sein. Kein ID-Token, ungeprüfter JWT-Claim oder Token für eine andere API genügt als Berechtigungsnachweis.
+- OpenIddict ist eine etablierte .NET-Bibliothek mit OIDC-Client-, Server- und Tokenvalidierungsfunktionen, aber kein betriebsfertiger Identity Provider. Das Projekt beschreibt es ausdrücklich als Framework, das für einen eigenen Server zusätzliche Implementierung (typischerweise Autorisierungsendpunkte) benötigt. Es ist daher kein Beleg für „keinen eigenen OAuth-Server“ und wird für diesen Plan nicht als fertige Serverlösung angenommen.
 - ChatGPT-Action-Schreibaufrufe dürfen nur vom Nutzer bestätigte Rezeptdaten speichern. Action-Beschreibung, UI und API müssen diese Grenze übereinstimmend erzwingen; die Action darf nicht als verlässlicher Ersatz für Nutzerbestätigung interpretiert werden.
+
+### ChatGPT-Actions und OAuth/OIDC
+
+Die aktuelle offizielle GPT-Actions-Dokumentation beschreibt nutzerbezogenen OAuth mit Client-ID, Client-Secret, Autorisierungs- und Token-URL sowie Scope. Der Token-Austausch verwendet `authorization_code`; der Token-Endpunkt liefert ein Bearer-Access-Token und kann zusätzlich ein Refresh-Token liefern. ChatGPT übermittelt das Nutzer-Token bei Action-Aufrufen im `Authorization`-Header. `state` ist vorgeschrieben; die Callback-Redirect-URI muss beim Provider registriert sein. Die akzeptierten Callback-Hosts/URLs und etwaige Anforderungen können sich ändern und müssen vor P5a erneut mit der offiziellen Dokumentation abgeglichen werden.
+
+**Kandidatenbewertung (11. Oktober 2026):**
+
+| Kandidat | Belegter Umfang | Bewertung für Küchenfuchs |
+|---|---|---|
+| Keycloak als externer Provider | Die offizielle Server-Administration dokumentiert Realms, Clients, Benutzer und Rollen; Keycloak dokumentiert OIDC-Funktionen und Client-Policies/PKCE. | Bevorzugter Kandidat, nicht bereits freigegeben. Ein dedizierter confidential client/Realm kann die Actions-Identität getrennt führen. P5a muss Authorization Code mit Client-Authentifizierung, Refresh-Verhalten, Token-Audience/Scopes, Redirect-Allowlist praktisch prüfen sowie Identitätsverknüpfung und Haushaltsrechte in der API nachweisen. Zusätzlicher Dienst erhöht Betrieb, Updates und Backupumfang. |
+| OpenIddict in der Küchenfuchs-API | Das Projekt unterstützt OIDC-Client-, Server- und Tokenvalidierungsfunktionen sowie Authorization-Code-Flows und EF Core. Das Projekt stellt klar, dass OpenIddict kein Turnkey-Produkt ist und eigener Autorisierungscode erforderlich ist. | Für ein ausdrückliches „keinen eigenen OAuth-Server entwickeln“ nicht als alleinige Lösung ausreichend. Nur neu bewerten, falls der Auftraggeber später ausdrücklich eine selbst betriebene, in der Anwendung integrierte Autorisierungsinstanz freigibt. |
+
+P2 bleibt unabhängig davon ASP.NET-Core-Identity-basiert; es richtet weder Keycloak noch OpenIddict ein. Wenn Keycloak später gewählt wird, muss vor Implementierung entschieden werden, wie Benutzer sicher provisioniert/verknüpft werden, wie ein Nutzer Einwilligung erteilt und welche Haushalte/Scopes er freigeben darf. Ohne eindeutige, überprüfte Verknüpfung gibt es keinen Zugriff. Die PWA-Anmeldung und die Actions-Autorisierung werden nicht durch das Teilen von Passwörtern, Cookies oder globalen API-Schlüsseln gekoppelt.
+
+**Quellen (abgerufen 11.10.2026):**
+
+- OpenAI, [GPT Action authentication](https://developers.openai.com/api/docs/actions/authentication) — OAuth-Parameter, Authorization-Code-Austausch, Bearer-Token, `state` und Callback-Redirects.
+- Keycloak, [Server Administration Guide](https://www.keycloak.org/docs/latest/server_admin/) — Konzepte für Realm, Client, Benutzer, Rollen und Einwilligung.
+- Keycloak, [OIDC layers / Client policies](https://www.keycloak.org/securing-apps/oidc-layers) — OIDC- und PKCE-bezogene Client-Policies.
+- OpenIddict, [Projektbeschreibung und Getting Started](https://github.com/openiddict/openiddict-core#what-is-openiddict) — Framework für OIDC Client/Server/Tokenvalidierung; kein Turnkey-Server und eigener Autorisierungscode erforderlich.
 
 ## Authentifizierung und Sicherheit
 

@@ -10,6 +10,8 @@ RUN dotnet publish Kuechenfuchs.Api.csproj --configuration Release --output /app
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish ./
+RUN mkdir -p /var/lib/kuechenfuchs/keys \
+    && chown "$APP_UID:$APP_UID" /var/lib/kuechenfuchs/keys
 
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080

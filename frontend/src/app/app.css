@@ -87,6 +87,10 @@
 .theme-toggle { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: var(--surface); cursor: pointer; }
 .theme-toggle:hover { background: var(--soft); }
 .avatar { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; color: #694a2d; background: #ead9bb; font-weight: 750; }
+.account-button { display: flex; max-width: 225px; height: 40px; align-items: center; gap: 9px; padding: 0 11px; border: 1px solid var(--line); border-radius: 11px; color: var(--muted); background: var(--surface); cursor: pointer; }
+.account-button app-icon { width: 17px; height: 17px; }
+.account-email { overflow: hidden; color: var(--ink); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.session-error { margin: 0; padding: 10px 20px; color: #9f433e; background: #f9ece9; font-size: 11px; }
 .page-content { width: min(100%, 1240px); margin: 0 auto; padding: 42px 46px 72px; }
 .mobile-nav { display: none; }
 
@@ -112,6 +116,8 @@
   .demo-pill { padding: 7px 9px; font-size: 10px; }
   .theme-toggle { width: 36px; height: 36px; }
   .avatar { width: 34px; height: 34px; }
+  .account-button { width: 36px; height: 36px; justify-content: center; padding: 0; border-radius: 50%; }
+  .account-email { display: none; }
   .page-content { padding: 29px 18px calc(112px + env(safe-area-inset-bottom)); }
   .mobile-nav {
     position: fixed;

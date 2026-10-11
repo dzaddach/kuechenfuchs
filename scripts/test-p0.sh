@@ -6,6 +6,9 @@ project_name="kuechenfuchs-p0-test-$$"
 http_port="${HTTP_PORT:-8080}"
 export HTTP_PORT="$http_port"
 export POSTGRES_PASSWORD="p0-smoke-test-only"
+export INITIAL_ADMIN_EMAIL="p0-smoke@example.test"
+export INITIAL_ADMIN_PASSWORD="P0-Smoke-$(openssl rand -hex 24)aA9!"
+export INITIAL_HOUSEHOLD_NAME="P0 Smoke Test"
 cd "$root_dir"
 
 compose() {

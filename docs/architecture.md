@@ -58,7 +58,9 @@ Die PWA sendet nur erforderliche, nutzerfreigegebene Eingaben an die API. Die AP
 
 Ein ChatGPT-Action-Client ruft mit nutzerbezogener Authentifizierung einen eng begrenzten Küchenfuchs-Endpunkt auf. Das Schreiben erfordert einen ausdrücklichen Speichervorgang. Keine ungeschützten Schreib-Endpunkte und kein globaler API-Schlüssel im Action-Schema.
 
-Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die konkrete OAuth/OIDC-Komponente wird nicht selbst implementiert: vor dem Auth-Paket ist nachzuweisen, dass eine gepflegte Lösung sowohl die PWA-Session als auch den von ChatGPT Actions benötigten Authorization-Code-Flow unterstützt. Falls nicht, ist ein etablierter Identity Provider zu prüfen.
+Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die PWA verwendet in P2 ASP.NET Core Identity mit einer Same-Origin-Cookie-Session; ChatGPT Actions benötigt dagegen OAuth-Token im Authorization-Header. Küchenfuchs implementiert keinen eigenen OAuth-/OIDC-Autorisierungsserver. Für P5a wird ein bestehender Identity Provider (bevorzugt Keycloak als selbst betriebener Kandidat) als Ausgabeinstanz für Actions-Token geprüft. Die API validiert dessen Token und ordnet die stabile Provider-Identität einer internen Küchenfuchs-Identität und deren Haushaltsrechten zu. Vor einer Festlegung sind Kontoverknüpfung, Scopes, Token-Widerruf, Redirect-Allowlist und ein echter End-to-End-Test gegen die dann aktuelle ChatGPT-Actions-Spezifikation nachzuweisen. P2 allein stellt ausdrücklich noch keinen OAuth-Endpunkt für ChatGPT bereit.
+
+Die Trennung vermeidet, dass die PWA-Cookie-Session als Action-Token missbraucht wird. Ein externer Provider bedeutet zusätzliche Betriebs- und Kontoverknüpfungsarbeit; falls dies für den privaten MVP nicht tragbar ist, bleiben Actions zurückgestellt und die PWA-KI-Funktion unabhängig nutzbar. Belege und offene Entscheidung: [API-Design](./api-design.md#chatgpt-actions-und-oauthoidc) und [offene Entscheidungen](./open-decisions.md).
 
 ## Systemübersicht
 

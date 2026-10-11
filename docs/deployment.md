@@ -8,8 +8,13 @@ Voraussetzung ist Docker mit Docker Compose v2.29 oder neuer. Im Repository-Stam
 
 ```sh
 cp .env.example .env
+# .env ausfüllen: INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD,
+# INITIAL_HOUSEHOLD_NAME und POSTGRES_PASSWORD. Bootstrap-Passwort erzeugen:
+openssl rand -base64 32
 docker compose up --build --detach
 ```
+
+Das Bootstrap-Passwort muss mindestens 14 Zeichen enthalten sowie Groß-/Kleinbuchstaben, eine Ziffer und ein Sonderzeichen. Bei leerer Datenbank führt die API die versionierten EF-Core-Migrationen aus und legt den Initialadministrator, die Administratorrolle, den ersten Haushalt und dessen Owner-Mitgliedschaft an. Ohne vollständige Bootstrap-Konfiguration schlägt der API-Start explizit fehl; es gibt kein Standardpasswort. Die Bootstrap-Variablen werden bei bereits vorhandenen Benutzern ignoriert und ändern keine bestehenden Zugangsdaten. Änderungen am Passwort müssen über einen dafür vorgesehenen Benutzerverwaltungsprozess erfolgen.
 
 Danach ist die Angular-Anwendung standardmäßig unter <http://localhost:8080> verfügbar. API-Liveness und die PostgreSQL-Bereitschaft sind über `/api/health/live` und `/api/health/ready` erreichbar. Caddy lauscht für lokale Entwicklung ausschließlich auf `127.0.0.1`; `HTTP_PORT` in `.env` ändert den Host-Port. Es gibt kein TLS und keine öffentliche Domain. Der PostgreSQL-Dienst hat keinen Host-Port. Der Ready-Check bestätigt eine tatsächliche Datenbankverbindung.
 
@@ -24,15 +29,16 @@ Kommandos aus dem Repository-Stamm:
 | Dienste neu starten | `docker compose restart` | Startet Container neu; neu geänderter Code wird nicht eingebaut. |
 | Änderungen neu bauen und starten | `docker compose up --build --detach` | Baut Images neu und ersetzt nötige Container; persistente Daten bleiben erhalten. |
 | Stack entfernen | `docker compose down` | Entfernt Container und Netzwerke; persistentes PostgreSQL-Volume bleibt erhalten. |
-| P0 Build-/Smoke-Tests | `./scripts/test-p0.sh` | Prüft Compose-Konfiguration, baut Images, startet einen isolierten Test-Stack, prüft Dienste/Proxy/DB/Portisolation und entfernt danach den Test-Stack samt Testvolume. Bei Portkonflikt z. B. `HTTP_PORT=51287 ./scripts/test-p0.sh` verwenden. |
+| P0 Build-/Smoke-Tests | `./scripts/test-p0.sh` | Prüft Compose-Konfiguration, baut Images, startet einen isolierten Test-Stack, prüft Dienste/Proxy/DB/Portisolation und ausgeliefertes Angular-Bundle, und entfernt danach den Test-Stack samt Testvolume. Bei Portkonflikt z. B. `HTTP_PORT=51287 ./scripts/test-p0.sh` verwenden. |
+| P2 Auth-Integrationstests | `./scripts/test-p2-auth.sh` | Isolierter Stack prüft Erstbootstrap, anonymen Zugriff, CSRF, Login, Cookie-Flags, Haushaltsisolation, Logout und Sitzungsablauf; Testvolume wird entfernt. |
 
-`docker compose down --volumes` löscht das lokale Datenbankvolume und damit gespeicherte Daten; nicht als normalen Stopp-/Neustartschritt verwenden. Für P0 ist keine Migration und keine Anwendungsdatenfunktion vorhanden.
+`docker compose down --volumes` löscht das lokale Datenbankvolume und damit gespeicherte Daten; nicht als normalen Stopp-/Neustartschritt verwenden. P2 führt in der lokalen Development-Compose-Umgebung versionierte EF-Core-Migrationen beim API-Start aus. Für produktive Deployments Migrationen als kontrollierten Release-Schritt vor dem API-Start ausführen; nicht parallel durch mehrere API-Replikate starten lassen.
 
 Wenn Port 8080 bereits belegt ist, `HTTP_PORT` in `.env` setzen oder für den Test `HTTP_PORT=51287 ./scripts/test-p0.sh` verwenden. PostgreSQL und API bleiben ohne Host-Port.
 
 ### P0-Prüfergebnisse
 
-Ausgeführt am 10.10.2026:
+P0-Basisprüfungen erneut ausgeführt am 11.10.2026:
 
 | Prüfung | Ergebnis |
 |---|---|
@@ -40,7 +46,19 @@ Ausgeführt am 10.10.2026:
 | `dotnet build backend/Kuechenfuchs.Api/Kuechenfuchs.Api.csproj --configuration Release` | Bestanden; 0 Warnungen, 0 Fehler. |
 | `docker compose config --quiet` | Bestanden; Compose-Konfiguration ist valide. |
 | `env -u POSTGRES_PASSWORD docker compose --env-file /dev/null config --quiet` | Erwartet fehlgeschlagen; Compose weist ein nicht gesetztes PostgreSQL-Kennwort ab. |
-| `HTTP_PORT=54391 ./scripts/test-p0.sh` | Bestanden; Angular-/API-Images gebaut, DB/API/Caddy-Healthchecks grün, `lang="de"` und ausgeliefertes Angular-JavaScript-Bundle mit erwartetem App-Inhalt über Caddy geprüft, PostgreSQL-Bereitschaft bestätigt, kein Host-Port für DB oder API. Isolierter Test-Stack und Testvolume wurden danach entfernt. |
+| `HTTP_PORT=54391 ./scripts/test-p0.sh` | Bestanden; Angular-/API-Images gebaut, DB/API/Caddy-Healthchecks grün, `lang="de"` und ausgeliefertes Angular-JavaScript-Bundle mit erwartetem App-Inhalt über Caddy geprüft, PostgreSQL-Bereitschaft bestätigt, kein Host-Port für DB oder API. Isolierter Test-Stack und Testvolume wurden danach entfernt. Port 8080 war bereits belegt; der Test wurde deshalb auf 54391 wiederholt. |
+
+### P2-Prüfergebnisse
+
+Ausgeführt am 11.10.2026:
+
+| Prüfung | Ergebnis |
+|---|---|
+| `dotnet build backend/Kuechenfuchs.Api/Kuechenfuchs.Api.csproj --configuration Release` | Bestanden; 0 Warnungen, 0 Fehler. |
+| `npm --prefix frontend test` | Bestanden; 4 Testdateien, 9 Tests. |
+| `npm --prefix frontend run build` | Bestanden; Angular-Produktionsbuild einschließlich Login-Seite. |
+| `HTTP_PORT=54392 ./scripts/test-p2-auth.sh` | Bestanden; frischer Compose-Stack führte EF-Migrationen und Bootstrap aus; CSRF, gültige/ungültige Anmeldung, HttpOnly/SameSite-Cookie, Haushaltsisolation, Logout und Sitzungsablauf geprüft. Test-Container, -Netzwerke und -Volumes entfernt. |
+| `bash -n scripts/test-p0.sh scripts/test-p2-auth.sh` und `git diff --check` | Bestanden. |
 
 ## Zieltopologie
 

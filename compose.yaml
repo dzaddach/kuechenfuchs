@@ -23,12 +23,20 @@ services:
       dockerfile: Dockerfile
     environment:
       ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_ENVIRONMENT: Development
       Database__Host: db
       Database__Port: 5432
       Database__Name: ${POSTGRES_DB:-kuechenfuchs}
       Database__User: ${POSTGRES_USER:-kuechenfuchs}
       Database__Password: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein; .env.example ist nur für lokale Entwicklung}
       Database__GssEncryptionMode: Disable
+      Bootstrap__AdminEmail: ${INITIAL_ADMIN_EMAIL:-}
+      Bootstrap__AdminPassword: ${INITIAL_ADMIN_PASSWORD:-}
+      Bootstrap__HouseholdName: ${INITIAL_HOUSEHOLD_NAME:-Unser Zuhause}
+      Authentication__CookieLifetimeSeconds: ${AUTH_COOKIE_LIFETIME_SECONDS:-28800}
+      DataProtection__KeysPath: /var/lib/kuechenfuchs/keys
+    volumes:
+      - aspnet_data_protection:/var/lib/kuechenfuchs/keys
     depends_on:
       db:
         condition: service_healthy
@@ -63,6 +71,7 @@ services:
 
 volumes:
   postgres_data:
+  aspnet_data_protection:
 
 networks:
   backend:

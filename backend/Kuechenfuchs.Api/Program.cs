@@ -1,5 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Kuechenfuchs.Api.Data;
+using Kuechenfuchs.Api.Identity;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using Npgsql;
 
 if (args.Contains("--healthcheck", StringComparer.Ordinal))
@@ -37,8 +44,96 @@ var connectionString = new NpgsqlConnectionStringBuilder
 }.ConnectionString;
 
 builder.Services.AddDbContext<KuechenfuchsDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.SignIn.RequireConfirmedAccount = false;
+        options.Password.RequiredLength = 14;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        options.Lockout.AllowedForNewUsers = true;
+    })
+    .AddEntityFrameworkStores<KuechenfuchsDbContext>()
+    .AddDefaultTokenProviders();
+
+var cookieLifetimeSeconds = builder.Configuration.GetValue("Authentication:CookieLifetimeSeconds", 28_800);
+if (cookieLifetimeSeconds < 1)
+{
+    throw new InvalidOperationException("Authentication:CookieLifetimeSeconds must be at least 1.");
+}
+
+var isDevelopment = builder.Environment.IsDevelopment();
+var securePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = isDevelopment ? "KF.Identity" : "__Host-KF.Identity";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.Path = "/";
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = securePolicy;
+    options.ExpireTimeSpan = TimeSpan.FromSeconds(cookieLifetimeSeconds);
+    options.SlidingExpiration = false;
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-KF-CSRF";
+    options.Cookie.Name = isDevelopment ? "KF.Antiforgery" : "__Host-KF.Antiforgery";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.Path = "/";
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = securePolicy;
+});
+
+var dataProtectionPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionPath))
+{
+    builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath));
+}
+
+builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+});
 
 var app = builder.Build();
+
+if (args.Contains("--bootstrap-admin", StringComparer.Ordinal))
+{
+    await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: false);
+    return;
+}
+
+if (app.Environment.IsDevelopment())
+{
+    await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: true);
+}
+
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/api/health/live", () => Results.Ok(new { status = "ok" }));
 
@@ -57,4 +152,268 @@ app.MapGet(
         return Results.Ok(new { status = "ready", database = "connected" });
     });
 
-app.Run();
+var auth = app.MapGroup("/api/auth");
+
+auth.MapGet("/csrf", (HttpContext context, IAntiforgery antiforgery) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var tokens = antiforgery.GetAndStoreTokens(context);
+    return Results.Ok(new { requestToken = tokens.RequestToken });
+});
+
+auth.MapPost(
+        "/login",
+        async Task<IResult> (
+            LoginRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            SignInManager<ApplicationUser> signInManager,
+            UserManager<ApplicationUser> userManager,
+            KuechenfuchsDbContext database) =>
+        {
+            if (!await HasValidAntiforgeryToken(context, antiforgery))
+            {
+                return AntiforgeryProblem();
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email)
+                || !new EmailAddressAttribute().IsValid(request.Email)
+                || string.IsNullOrEmpty(request.Password)
+                || request.Password.Length > 256)
+            {
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid sign-in request");
+            }
+
+            var user = await userManager.FindByEmailAsync(request.Email.Trim());
+            if (user is null || !user.IsEnabled)
+            {
+                return InvalidCredentials();
+            }
+
+            var result = await signInManager.PasswordSignInAsync(
+                user,
+                request.Password,
+                isPersistent: false,
+                lockoutOnFailure: true);
+            if (!result.Succeeded)
+            {
+                return InvalidCredentials();
+            }
+
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(await CreateSession(user, database));
+        })
+    .AllowAnonymous()
+    .RequireRateLimiting("login");
+
+auth.MapGet(
+        "/session",
+        async Task<IResult> (ClaimsPrincipal principal, KuechenfuchsDbContext database) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null)
+            {
+                return Results.Unauthorized();
+            }
+
+            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId);
+            if (user is null || !user.IsEnabled)
+            {
+                return Results.Unauthorized();
+            }
+
+            return Results.Ok(await CreateSession(user, database));
+        })
+    .RequireAuthorization();
+
+auth.MapPost(
+        "/logout",
+        async Task<IResult> (HttpContext context, IAntiforgery antiforgery, SignInManager<ApplicationUser> signInManager) =>
+        {
+            if (!await HasValidAntiforgeryToken(context, antiforgery))
+            {
+                return AntiforgeryProblem();
+            }
+
+            await signInManager.SignOutAsync();
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.NoContent();
+        })
+    .RequireAuthorization();
+
+var api = app.MapGroup("/api/v1").RequireAuthorization();
+api.MapGet(
+    "/me",
+    async Task<IResult> (ClaimsPrincipal principal, KuechenfuchsDbContext database) =>
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId);
+        if (user is null || !user.IsEnabled)
+        {
+            return Results.Unauthorized();
+        }
+
+        return Results.Ok(await CreateSession(user, database));
+    });
+
+api.MapGet(
+    "/households/{householdId:guid}",
+    async Task<IResult> (Guid householdId, ClaimsPrincipal principal, KuechenfuchsDbContext database) =>
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var household = await database.HouseholdMembers
+            .AsNoTracking()
+            .Where(member => member.HouseholdId == householdId && member.UserId == userId)
+            .Select(member => new { member.Household.Id, member.Household.Name, member.Role })
+            .SingleOrDefaultAsync();
+        return household is null ? Results.NotFound() : Results.Ok(household);
+    });
+
+api.MapGet(
+    "/households/{householdId:guid}/members",
+    async Task<IResult> (Guid householdId, ClaimsPrincipal principal, KuechenfuchsDbContext database) =>
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var isMember = await database.HouseholdMembers.AnyAsync(
+            member => member.HouseholdId == householdId && member.UserId == userId);
+        if (!isMember)
+        {
+            return Results.NotFound();
+        }
+
+        var members = await database.HouseholdMembers
+            .AsNoTracking()
+            .Where(member => member.HouseholdId == householdId)
+            .OrderBy(member => member.JoinedAt)
+            .Select(member => new
+            {
+                member.UserId,
+                member.User.Email,
+                member.Role,
+                member.JoinedAt,
+            })
+            .ToListAsync();
+        return Results.Ok(members);
+    });
+
+api.MapPost(
+    "/households/{householdId:guid}/members",
+    async Task<IResult> (
+        Guid householdId,
+        AddHouseholdMemberRequest request,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        UserManager<ApplicationUser> userManager,
+        KuechenfuchsDbContext database) =>
+    {
+        if (!await HasValidAntiforgeryToken(context, antiforgery))
+        {
+            return AntiforgeryProblem();
+        }
+
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var isOwner = await database.HouseholdMembers.AnyAsync(
+            member => member.HouseholdId == householdId
+                && member.UserId == userId
+                && member.Role == HouseholdRoles.Owner);
+        if (!isOwner)
+        {
+            return Results.NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email) || !new EmailAddressAttribute().IsValid(request.Email))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid member request");
+        }
+
+        var invitedUser = await userManager.FindByEmailAsync(request.Email.Trim());
+        if (invitedUser is null || !invitedUser.IsEnabled)
+        {
+            return Results.NotFound();
+        }
+
+        var alreadyMember = await database.HouseholdMembers.AnyAsync(
+            member => member.HouseholdId == householdId && member.UserId == invitedUser.Id);
+        if (alreadyMember)
+        {
+            return Results.Conflict();
+        }
+
+        var membership = new HouseholdMember
+        {
+            HouseholdId = householdId,
+            UserId = invitedUser.Id,
+            Role = HouseholdRoles.Member,
+        };
+        database.HouseholdMembers.Add(membership);
+        await database.SaveChangesAsync();
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.Created(
+            $"/api/v1/households/{householdId}/members/{invitedUser.Id}",
+            new { membership.HouseholdId, membership.UserId, membership.Role, membership.JoinedAt });
+    });
+
+await app.RunAsync();
+
+static Guid? GetUserId(ClaimsPrincipal principal) =>
+    Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : null;
+
+static async Task<object> CreateSession(ApplicationUser user, KuechenfuchsDbContext database)
+{
+    var households = await database.HouseholdMembers
+        .AsNoTracking()
+        .Where(member => member.UserId == user.Id)
+        .OrderBy(member => member.Household.Name)
+        .Select(member => new { member.HouseholdId, member.Household.Name, member.Role })
+        .ToListAsync();
+    return new { userId = user.Id, email = user.Email, households };
+}
+
+static async Task<bool> HasValidAntiforgeryToken(HttpContext context, IAntiforgery antiforgery)
+{
+    try
+    {
+        await antiforgery.ValidateRequestAsync(context);
+        return true;
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return false;
+    }
+}
+
+static IResult AntiforgeryProblem() =>
+    Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "CSRF validation failed");
+
+static IResult InvalidCredentials() =>
+    Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid email or password");
+
+public sealed record LoginRequest(string Email, string Password);
+public sealed record AddHouseholdMemberRequest(string Email);
+
+public partial class Program;
