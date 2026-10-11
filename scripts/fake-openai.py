@@ -73,8 +73,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         if prompt == "FAKE: delayed success":
             time.sleep(6)
-            self.send_json(200, self.completion())
-            return
         if prompt == "FAKE: provider rate limit":
             self.send_json(429, {"error": {"message": "test rate limit"}})
             return
