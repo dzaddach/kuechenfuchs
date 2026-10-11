@@ -152,6 +152,7 @@ public sealed class KuechenfuchsDbContext(
             entity.Property(link => link.Issuer).HasMaxLength(500).IsRequired();
             entity.Property(link => link.Subject).HasMaxLength(255).IsRequired();
             entity.Property(link => link.CreatedAt).IsRequired();
+            entity.Property(link => link.TokensNotBefore).IsRequired();
             entity.Property(link => link.RevokedReason).HasMaxLength(40);
             entity.HasIndex(link => new { link.Issuer, link.Subject })
                 .IsUnique()

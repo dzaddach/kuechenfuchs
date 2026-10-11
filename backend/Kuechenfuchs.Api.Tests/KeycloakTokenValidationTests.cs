@@ -147,6 +147,52 @@ public sealed class KeycloakTokenValidationTests : IDisposable
     }
 
     [Fact]
+    public void TokensNotBeforeStartsAfterTheLinkSecondPlusClockSkew()
+    {
+        var createdAt = DateTimeOffset.FromUnixTimeMilliseconds(1_000_999);
+
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1_001), KeycloakTokenValidation.CalculateTokensNotBefore(createdAt, 0));
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1_031), KeycloakTokenValidation.CalculateTokensNotBefore(createdAt, 30));
+    }
+
+    [Fact]
+    public void TokenIssuedInTheLinkSecondIsRejected()
+    {
+        // Old token issued at 1000.2 s, revoked at 1000.5 s, relinked at 1000.9 s: iat has only second resolution.
+        var notBefore = KeycloakTokenValidation.CalculateTokensNotBefore(DateTimeOffset.FromUnixTimeMilliseconds(1_000_900), 0);
+
+        Assert.False(KeycloakTokenValidation.IsIssuedForLink(DateTimeOffset.FromUnixTimeSeconds(1_000), notBefore));
+        Assert.True(KeycloakTokenValidation.IsIssuedForLink(DateTimeOffset.FromUnixTimeSeconds(1_001), notBefore));
+    }
+
+    [Fact]
+    public void OldTokenFromProviderClockAheadBySkewIsRejected()
+    {
+        // Keycloak clock 30 s ahead: a token issued at API time 1000.2 s carries iat = 1030.
+        var notBefore = KeycloakTokenValidation.CalculateTokensNotBefore(DateTimeOffset.FromUnixTimeMilliseconds(1_000_900), 30);
+
+        Assert.False(KeycloakTokenValidation.IsIssuedForLink(DateTimeOffset.FromUnixTimeSeconds(1_030), notBefore));
+    }
+
+    [Fact]
+    public async Task RejectsAccessTokenWithoutIssuedAt()
+    {
+        var handler = new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false };
+        var raw = handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = Issuer,
+            Audience = _options.ApiAudience,
+            Expires = DateTime.UtcNow.AddMinutes(5),
+            Claims = AccessClaims(),
+            SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.RsaSha256),
+        });
+        var token = await ValidateAccessTokenAsync(raw);
+
+        Assert.NotNull(token);
+        Assert.Equal("missing issued-at", KeycloakTokenValidation.CheckAccessToken(token!, _options).Failure);
+    }
+
+    [Fact]
     public void ComputesPkceChallengeFromRfc7636Example() =>
         Assert.Equal(
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",

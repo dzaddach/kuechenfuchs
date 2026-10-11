@@ -50,11 +50,26 @@ public static class ChatGptBearer
         var link = await database.ExternalIdentityLinks
             .AsNoTracking()
             .Where(item => item.Issuer == check.Issuer && item.Subject == check.Subject && item.RevokedAt == null)
-            .Select(item => new { item.Id, item.UserId, item.HouseholdId, item.User.IsEnabled, item.User.LockoutEnd })
+            .Select(item => new
+            {
+                item.Id,
+                item.UserId,
+                item.HouseholdId,
+                item.TokensNotBefore,
+                item.User.IsEnabled,
+                item.User.LockoutEnd,
+            })
             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
         if (link is null)
         {
             logger.LogInformation("Bearer token rejected: no active external identity link.");
+            context.Fail("Token rejected.");
+            return;
+        }
+
+        if (!KeycloakTokenValidation.IsIssuedForLink(check.IssuedAt, link.TokensNotBefore))
+        {
+            logger.LogInformation("Bearer token rejected: issued before external identity link {LinkId}.", link.Id);
             context.Fail("Token rejected.");
             return;
         }

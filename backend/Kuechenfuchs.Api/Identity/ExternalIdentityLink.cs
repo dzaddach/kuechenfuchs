@@ -14,6 +14,13 @@ public sealed class ExternalIdentityLink
     public Guid HouseholdId { get; set; }
     public Household Household { get; set; } = null!;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Earliest accepted token issue time (whole seconds). Tokens issued before this link existed – including
+    /// tokens from an earlier, revoked link of the same identity – are never accepted for this link.
+    /// </summary>
+    public DateTimeOffset TokensNotBefore { get; set; }
+
     public DateTimeOffset? RevokedAt { get; set; }
     public string? RevokedReason { get; set; }
 }

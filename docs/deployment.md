@@ -32,8 +32,8 @@ docker compose -f compose.yaml -f compose.keycloak.yaml up --build --detach
 | Prüfung | Ergebnis |
 |---|---|
 | API Release-Build | Bestanden, 0 Warnungen / 0 Fehler |
-| Backend-Unit-Tests | Bestanden, 37 Tests (davon 18 neu: Issuer, Audience, Ablauf, fremde/manipulierte/fehlende Signatur, HS256, ID-Token, Client, Subject, Nonce, PKCE, Optionen) |
-| `scripts/test-p5a-keycloak.sh` | Bestanden, 34 Prüfungen gegen echtes Keycloak 26.7.5 und PostgreSQL: Verknüpfung, manipulierte/wiederverwendete/abgelaufene/fremde-Browser-Anfragen, Konflikte, keine E-Mail-Zuordnung, unbekannte Identität, falscher Issuer/Audience, abgelaufener/manipulierter Token, ID-Token, fehlender Scope, fremder/zweiter Haushalt, entfernte Mitgliedschaft, deaktivierter/gesperrter Benutzer, Widerruf, Neuverknüpfung, Persistenz nach Neuerstellung, Netzwerkexposition, PWA-Login/Logout, keine Secrets in Logs |
+| Backend-Unit-Tests | Bestanden, 41 Tests (davon 22 neu: Token-Generation/`iat`, Issuer, Audience, Ablauf, fremde/manipulierte/fehlende Signatur, HS256, ID-Token, Client, Subject, Nonce, PKCE, Optionen) |
+| `scripts/test-p5a-keycloak.sh` | Bestanden, 37 Prüfungen gegen echtes Keycloak 26.7.5 und PostgreSQL: Verknüpfung, alte Tokens bleiben nach Widerruf und Neuverknüpfung ungültig, manipulierte/wiederverwendete/abgelaufene/fremde-Browser-Anfragen, Konflikte, keine E-Mail-Zuordnung, unbekannte Identität, falscher Issuer/Audience, abgelaufener/manipulierter Token, ID-Token, fehlender Scope, fremder/zweiter Haushalt, entfernte Mitgliedschaft, deaktivierter/gesperrter Benutzer, Widerruf, Neuverknüpfung, Persistenz nach Neuerstellung, Netzwerkexposition, PWA-Login/Logout, keine Secrets in Logs |
 | P0–P4-Regression | Bestanden (P0 wegen belegtem Standardport mit `HTTP_PORT=54394`) |
 
 ## ChatGPT Actions OAuth (P5a.2, geplant)

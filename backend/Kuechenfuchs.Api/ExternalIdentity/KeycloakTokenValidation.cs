@@ -52,8 +52,33 @@ public static class KeycloakTokenValidation
         var scopes = token.TryGetPayloadValue<string>("scope", out var scope) && scope.Length <= 2_000
             ? scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];
-        return new AccessTokenCheck(true, null, token.Issuer, token.Subject, authorizedParty, scopes);
+        if (!token.TryGetPayloadValue<long>("iat", out var issuedAt) || issuedAt <= 0)
+        {
+            return AccessTokenCheck.Fail("missing issued-at");
+        }
+
+        return new AccessTokenCheck(
+            true,
+            null,
+            token.Issuer,
+            token.Subject,
+            authorizedParty,
+            scopes,
+            DateTimeOffset.FromUnixTimeSeconds(issuedAt));
     }
+
+    /// <summary>
+    /// Token generation boundary for a new link. JWT <c>iat</c> has one-second resolution and Keycloak's clock
+    /// may run ahead of the API clock by up to the configured skew. Starting at the next whole second plus the
+    /// skew guarantees that no token issued before the link was created (in particular before an earlier
+    /// revocation of the same identity) can reach the boundary. Tokens issued in this short window after linking
+    /// are rejected as well (fail closed); the client simply obtains a new token.
+    /// </summary>
+    public static DateTimeOffset CalculateTokensNotBefore(DateTimeOffset linkCreatedAt, int clockSkewSeconds) =>
+        DateTimeOffset.FromUnixTimeSeconds(linkCreatedAt.ToUnixTimeSeconds() + 1 + clockSkewSeconds);
+
+    public static bool IsIssuedForLink(DateTimeOffset issuedAt, DateTimeOffset tokensNotBefore) =>
+        issuedAt >= tokensNotBefore;
 
     /// <summary>Checks a signature-validated ID token from the linking client, including the one-time nonce.</summary>
     public static string? CheckIdToken(JsonWebToken token, KeycloakOptions options, string expectedNonceHash)
@@ -110,7 +135,9 @@ public sealed record AccessTokenCheck(
     string Issuer,
     string Subject,
     string ClientId,
-    IReadOnlyList<string> Scopes)
+    IReadOnlyList<string> Scopes,
+    DateTimeOffset IssuedAt)
 {
-    public static AccessTokenCheck Fail(string failure) => new(false, failure, string.Empty, string.Empty, string.Empty, []);
+    public static AccessTokenCheck Fail(string failure) =>
+        new(false, failure, string.Empty, string.Empty, string.Empty, [], DateTimeOffset.MinValue);
 }

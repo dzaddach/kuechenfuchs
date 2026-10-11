@@ -37,6 +37,9 @@ function kcadm(...args) {
   return compose(['exec', '-T', 'keycloak', '/opt/keycloak/bin/kcadm.sh', ...args]);
 }
 
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+// Tokens are only accepted from the next whole second after linking (+ clock skew, 0 in this test).
+const waitForNewTokenGeneration = () => sleep(2_100);
 const randomValue = () => randomBytes(32).toString('base64url');
 const s256 = (verifier) => createHash('sha256').update(verifier).digest('base64url');
 const randomPassword = () => `Kc-${randomBytes(18).toString('base64url')}9!`;
@@ -309,6 +312,7 @@ async function main() {
   assert.equal(await link(pwa, csrf, homeId, bob), 'conflict');
   check('Keycloak identity already linked to another user is rejected (conflict)');
 
+  const preLinkToken = (await chatGptTokens(alice)).access_token;
   assert.equal(await link(pwa, csrf, homeId, alice), 'linked');
   const links = sql(`SELECT "Subject" || '|' || "UserId" || '|' || "HouseholdId" FROM "ExternalIdentityLinks" WHERE "Issuer"='${issuer}' AND "UserId"='${userId}' AND "RevokedAt" IS NULL`);
   assert.equal(links, `${alice.id}|${userId}|${homeId}`);
@@ -329,6 +333,10 @@ async function main() {
   check('no link was created from the matching e-mail address');
 
   console.log('Running bearer checks...');
+  assert.equal((await bearerCheck(preLinkToken, homeId)).status, 401);
+  check('token issued before the link existed is rejected after linking (401)');
+
+  await waitForNewTokenGeneration();
   const aliceTokens = await chatGptTokens(alice);
   const accessToken = aliceTokens.access_token;
   const payload = decodePayload(accessToken);
@@ -412,7 +420,7 @@ async function main() {
   const shortLived = await chatGptTokens(alice);
   kcadm('update', `clients/${chatGptClient}`, '-r', realm, '-s', 'attributes."access.token.lifespan"=300');
   assert.equal((await bearerCheck(shortLived.access_token, homeId)).status, 200);
-  await new Promise((resolve) => setTimeout(resolve, 13_000));
+  await sleep(13_000);
   assert.equal((await bearerCheck(shortLived.access_token, homeId)).status, 401);
   check('expired token is rejected (401)');
 
@@ -449,16 +457,31 @@ async function main() {
     method: 'DELETE', headers: { 'X-KF-CSRF': csrf },
   });
   assert.equal(response.status, 204);
+  // Re-linking scenario: (1) token works, (2) revoked, (3) re-linked, (4) old token stays invalid,
+  // (5) new token works for the newly chosen household only.
   assert.equal((await bearerCheck(accessToken, homeId)).status, 401);
   const revoked = (await pwa.request(`${appBase}/api/v1/integrations/keycloak/links`)).json();
   assert.ok(revoked.find((item) => item.id === linkId).revokedAt);
   check('revoked link stops the still-valid token immediately (401)');
 
+  const issuedWhileUnlinked = (await chatGptTokens(alice)).access_token;
+  assert.equal((await bearerCheck(issuedWhileUnlinked, homeId)).status, 401);
   assert.equal(await link(pwa, csrf, secondHomeId, alice), 'linked');
+  assert.equal(sql(`SELECT count(*) FROM "ExternalIdentityLinks" WHERE "Subject"='${alice.id}' AND "RevokedAt" IS NULL AND "HouseholdId"='${secondHomeId}'`), '1');
+  check('same Keycloak identity can be linked again explicitly for another household');
+
+  for (const oldToken of [accessToken, issuedWhileUnlinked]) {
+    assert.equal(decodePayload(oldToken).exp * 1000 > Date.now(), true, 'old token must still be unexpired');
+    assert.equal((await bearerCheck(oldToken, secondHomeId)).status, 401);
+    assert.equal((await bearerCheck(oldToken, homeId)).status, 401);
+  }
+  check('unexpired tokens issued before revocation or while unlinked stay invalid after re-linking (401)');
+
+  await waitForNewTokenGeneration();
   const relinked = await chatGptTokens(alice);
   assert.equal((await bearerCheck(relinked.access_token, secondHomeId)).status, 200);
   assert.equal((await bearerCheck(relinked.access_token, homeId)).status, 404);
-  check('new explicit link after revocation binds the newly chosen household only');
+  check('newly issued token works for the newly chosen household only');
 
   const keycloakUsers = compose(['exec', '-T', 'keycloak-db', 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'keycloak', '-d', 'keycloak',
     '-Atc', "SELECT count(*) FROM user_entity WHERE username = 'p5a-alice'"]).trim();

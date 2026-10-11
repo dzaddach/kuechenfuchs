@@ -230,12 +230,17 @@ public sealed class ExternalIdentityLinkService(
             return LinkCompletionStatus.Conflict;
         }
 
+        var createdAt = DateTimeOffset.UtcNow;
         var link = new ExternalIdentityLink
         {
             Issuer = identity.Issuer,
             Subject = identity.Subject,
             UserId = request.UserId,
             HouseholdId = request.HouseholdId,
+            CreatedAt = createdAt,
+            TokensNotBefore = KeycloakTokenValidation.CalculateTokensNotBefore(
+                createdAt,
+                options.Value.ClockSkewSeconds),
         };
         database.ExternalIdentityLinks.Add(link);
         try
