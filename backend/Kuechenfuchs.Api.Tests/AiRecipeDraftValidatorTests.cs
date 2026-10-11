@@ -96,4 +96,19 @@ public sealed class AiRecipeDraftValidatorTests
         Assert.Equal(0.0055m, AiRecipeDraftValidator.MaximumRequestCost(settings));
         Assert.Equal(0.0008m, AiRecipeDraftValidator.ActualCost(settings, 1_000, 200));
     }
+
+    [Fact]
+    public void RoundsConfiguredCostsUpToThePersistedDatabasePrecision()
+    {
+        var settings = new AiRecipeOptions
+        {
+            MaxInputTokens = 1,
+            MaxOutputTokens = 1,
+            InputUsdPerMillionTokens = 0.001m,
+            OutputUsdPerMillionTokens = 0.001m
+        };
+
+        Assert.Equal(0.00000001m, AiRecipeDraftValidator.MaximumRequestCost(settings));
+        Assert.Equal(0.00000001m, AiRecipeDraftValidator.ActualCost(settings, 1, 0));
+    }
 }

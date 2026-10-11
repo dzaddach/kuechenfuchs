@@ -17,9 +17,13 @@ public sealed class OpenAiRecipeProviderTests
     {
         string? capturedContent = null;
         AuthenticationHeaderValue? capturedAuthorization = null;
+        long? capturedContentLength = null;
+        bool? capturedChunked = null;
         var handler = new StubHandler(async (request, cancellationToken) =>
         {
             capturedAuthorization = request.Headers.Authorization;
+            capturedContentLength = request.Content!.Headers.ContentLength;
+            capturedChunked = request.Headers.TransferEncodingChunked;
             capturedContent = await request.Content!.ReadAsStringAsync(cancellationToken);
             return JsonResponse("""
                 {"choices":[{"message":{"content":"{\"title\":\"Soup\"}"}}],"usage":{"prompt_tokens":500,"completion_tokens":300}}
@@ -38,6 +42,8 @@ public sealed class OpenAiRecipeProviderTests
         Assert.Contains("json_schema", capturedContent);
         Assert.Equal("Bearer", capturedAuthorization?.Scheme);
         Assert.Equal("unit-test-secret", capturedAuthorization?.Parameter);
+        Assert.True(capturedContentLength > 0);
+        Assert.NotEqual(true, capturedChunked);
     }
 
     [Fact]
@@ -65,6 +71,7 @@ public sealed class OpenAiRecipeProviderTests
             new AiProviderInput("Soup", 2, [], [], []),
             CancellationToken.None);
         Assert.Equal(AiProviderFailure.RateLimited, rateLimited.Failure);
+        Assert.True(rateLimited.DefinitelyNoCharge);
 
         using var timeoutClient = new HttpClient(new StubHandler(async (_, cancellationToken) =>
         {
@@ -87,6 +94,16 @@ public sealed class OpenAiRecipeProviderTests
             new AiProviderInput("Soup", 2, [], [], []),
             CancellationToken.None);
         Assert.Equal(AiProviderFailure.Unavailable, serverError.Failure);
+        Assert.False(serverError.DefinitelyNoCharge);
+
+        using var rejectedClient = new HttpClient(new StubHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest))));
+        var rejectedProvider = CreateProvider(rejectedClient);
+        var rejected = await rejectedProvider.GenerateAsync(
+            new AiProviderInput("Soup", 2, [], [], []),
+            CancellationToken.None);
+        Assert.Equal(AiProviderFailure.Unavailable, rejected.Failure);
+        Assert.True(rejected.DefinitelyNoCharge);
 
         using var networkErrorClient = new HttpClient(new StubHandler((_, _) =>
             Task.FromException<HttpResponseMessage>(new HttpRequestException("private provider error"))));

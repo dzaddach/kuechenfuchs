@@ -7,6 +7,9 @@ http_port="${HTTP_PORT:-54395}"
 cookie_jar="$(mktemp)"
 response_body="$(mktemp)"
 response_headers="$(mktemp)"
+async_body="$(mktemp)"
+async_headers="$(mktemp)"
+async_status="$(mktemp)"
 export HTTP_PORT="$http_port"
 export POSTGRES_DB="${POSTGRES_DB:-kuechenfuchs}"
 export POSTGRES_USER="${POSTGRES_USER:-kuechenfuchs}"
@@ -25,7 +28,8 @@ cleanup() {
   local exit_status=$?
   trap - EXIT
   compose down --volumes --remove-orphans || exit_status=$?
-  rm -f "$cookie_jar" "$response_body" "$response_headers" || exit_status=$?
+  rm -f "$cookie_jar" "$response_body" "$response_headers" \
+    "$async_body" "$async_headers" "$async_status" || exit_status=$?
   exit "$exit_status"
 }
 
@@ -44,7 +48,7 @@ assert_status() {
 }
 
 request() {
-  curl --silent --show-error --max-time 8 --output "$response_body" --dump-header "$response_headers" \
+  curl --silent --show-error --max-time 12 --output "$response_body" --dump-header "$response_headers" \
     --write-out '%{http_code}' "$@"
 }
 
@@ -58,7 +62,23 @@ ai_request() {
     "$base_url/api/v1/households/$household_id/ai/recipe-drafts"
 }
 
+ai_request_async() {
+  local prompt="$1"
+  local payload
+  payload="$(node -e 'process.stdout.write(JSON.stringify({prompt:process.argv[1],desiredServings:3,availableIngredients:["Kartoffeln"],preferences:[],avoidIngredients:[],externalProcessingConfirmed:true}))' "$prompt")"
+  curl --silent --show-error --max-time 12 --output "$async_body" --dump-header "$async_headers" \
+    --write-out '%{http_code}' --cookie "$cookie_jar" \
+    --header 'Content-Type: application/json' --header "X-KF-CSRF: $csrf_token" \
+    --data "$payload" "$base_url/api/v1/households/$household_id/ai/recipe-drafts" \
+    >"$async_status"
+}
+
+database_value() {
+  compose exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"
+}
+
 trap cleanup EXIT
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest scripts/test_fake_openai_body.py
 compose config --quiet
 compose build
 compose up --detach
@@ -142,6 +162,47 @@ node -e 'if(JSON.parse(process.argv[1]).title!=="Monthly AI budget reached")proc
 status="$(ai_request "Monthly cost cap remains enforced")"
 assert_status 429 "$status" "Repeated monthly AI cost budget"
 
+known_free_count="$(database_value 'SELECT count(*) FROM "AiUsageReservations" WHERE "FinalizedUsd" = 0 AND "IsEstimated" = false')"
+[[ "$known_free_count" -ge 1 ]] || fail "Provider HTTP 429 was not recorded as a known zero-cost failure."
+uncertain_count="$(database_value 'SELECT count(*) FROM "AiUsageReservations" WHERE "IsEstimated" = true AND "FinalizedUsd" = "ReservedUsd"')"
+[[ "$uncertain_count" -ge 1 ]] || fail "The timed-out request was not conservatively charged its reservation."
+reserved_total="$(database_value "SELECT \"ReservedUsd\" FROM \"AiUsageBudgets\" WHERE \"HouseholdId\" = '$household_id' AND \"MonthStart\" = date_trunc('month', CURRENT_DATE)::date")"
+[[ "$reserved_total" == "0.00000000" ]] || fail "Completed and failed requests left funds reserved: $reserved_total."
+
+database_value "DELETE FROM \"AiUsageReservations\"; UPDATE \"AiUsageBudgets\" SET \"RequestCount\" = 0, \"SpentUsd\" = 0.004, \"ReservedUsd\" = 0 WHERE \"HouseholdId\" = '$household_id' AND \"MonthStart\" = date_trunc('month', CURRENT_DATE)::date" >/dev/null
+ai_request_async "FAKE: delayed success" &
+delayed_pid=$!
+reservation_ready=false
+for _ in {1..40}; do
+  active_reservations="$(database_value 'SELECT count(*) FROM "AiUsageReservations" WHERE "FinalizedUsd" IS NULL')"
+  if [[ "$active_reservations" == "1" ]]; then
+    reservation_ready=true
+    break
+  fi
+  sleep 0.1
+done
+[[ "$reservation_ready" == true ]] || fail "The delayed provider call did not acquire its unique reservation."
+status="$(ai_request "Concurrent request should not exceed the remaining budget")"
+assert_status 429 "$status" "Concurrent reservation must respect the household budget"
+node -e 'if(JSON.parse(process.argv[1]).title!=="Monthly AI budget reached")process.exit(1)' "$(cat "$response_body")" \
+  || fail "Concurrent budget rejection did not report the exhausted budget."
+active_reservations="$(database_value 'SELECT count(*) FROM "AiUsageReservations" WHERE "FinalizedUsd" IS NULL')"
+[[ "$active_reservations" == "1" ]] || fail "A concurrent request altered the active request's reservation."
+sleep 2.2
+status="$(ai_request "Expired request is charged until usage arrives")"
+assert_status 429 "$status" "Active reservation expiration must remain conservatively charged"
+node -e 'if(JSON.parse(process.argv[1]).title!=="Monthly AI budget reached")process.exit(1)' "$(cat "$response_body")" \
+  || fail "An expired in-flight reservation was released before actual usage was known."
+wait "$delayed_pid" || fail "The delayed provider request failed unexpectedly."
+status="$(cat "$async_status")"
+assert_status 200 "$status" "Late successful settlement"
+status="$(ai_request "Budget remains usable after late actual usage reconciles")"
+assert_status 200 "$status" "Late usage reconciled against the conservative reservation"
+budget_totals="$(database_value "SELECT \"SpentUsd\"::text || ':' || \"ReservedUsd\"::text || ':' || \"RequestCount\"::text FROM \"AiUsageBudgets\" WHERE \"HouseholdId\" = '$household_id' AND \"MonthStart\" = date_trunc('month', CURRENT_DATE)::date")"
+[[ "$budget_totals" == "0.00550000:0.00000000:2" ]] || fail "Late settlement was not reconciled exactly once: $budget_totals."
+open_reservations="$(database_value 'SELECT count(*) FROM "AiUsageReservations" WHERE "FinalizedUsd" IS NULL')"
+[[ "$open_reservations" == "0" ]] || fail "Completed requests left $open_reservations open reservations."
+
 status="$(request --cookie "$cookie_jar" --header 'Content-Type: application/json' \
   --data '{}' "$base_url/api/v1/households/$household_id/ai/recipe-drafts")"
 assert_status 400 "$status" "AI request without CSRF token"
@@ -150,9 +211,17 @@ status="$(request --cookie "$cookie_jar" --header 'Content-Type: application/jso
   "$base_url/api/v1/households/$household_id/ai/recipe-drafts")"
 assert_status 400 "$status" "AI request with invalid CSRF token"
 
-status="$(ai_request "Rate limit check")"
-assert_status 429 "$status" "Per-household AI request rate limit"
-node -e 'if(JSON.parse(process.argv[1]).title!=="Request rate limit reached")process.exit(1)' "$(cat "$response_body")" \
-  || fail "Rate-limit rejection did not use the expected problem response."
+rate_limited=false
+for _ in {1..60}; do
+  status="$(request --cookie "$cookie_jar" --header 'Content-Type: application/json' \
+    --data '{}' "$base_url/api/v1/households/$household_id/ai/recipe-drafts")"
+  if [[ "$status" == 429 ]] \
+    && node -e 'if(JSON.parse(process.argv[1]).title!=="Request rate limit reached")process.exit(1)' "$(cat "$response_body")"; then
+    rate_limited=true
+    break
+  fi
+  [[ "$status" == 400 ]] || fail "Unexpected response while checking the per-user request rate limit: HTTP $status"
+done
+[[ "$rate_limited" == true ]] || fail "Per-user AI request rate limit was not enforced."
 
 echo "P4 AI recipe integration checks passed; all provider traffic used the local fake service."

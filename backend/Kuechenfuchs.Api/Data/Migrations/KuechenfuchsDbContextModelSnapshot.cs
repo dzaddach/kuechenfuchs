@@ -33,9 +33,6 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.Property<int>("RequestCount")
                         .HasColumnType("integer");
 
-                    b.Property<DateTimeOffset?>("ReservationUpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<decimal>("ReservedUsd")
                         .HasPrecision(14, 8)
                         .HasColumnType("numeric(14,8)");
@@ -47,6 +44,39 @@ namespace Kuechenfuchs.Api.Data.Migrations
                     b.HasKey("HouseholdId", "MonthStart");
 
                     b.ToTable("AiUsageBudgets");
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.AiUsageReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("FinalizedUsd")
+                        .HasPrecision(14, 8)
+                        .HasColumnType("numeric(14,8)");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsEstimated")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("MonthStart")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("ReservedUsd")
+                        .HasPrecision(14, 8)
+                        .HasColumnType("numeric(14,8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId", "MonthStart", "FinalizedUsd", "CreatedAt");
+
+                    b.ToTable("AiUsageReservations");
                 });
 
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.ApplicationUser", b =>
@@ -571,6 +601,15 @@ namespace Kuechenfuchs.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("Kuechenfuchs.Api.Identity.AiUsageBudget", b =>
+                {
+                    b.HasOne("Kuechenfuchs.Api.Identity.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kuechenfuchs.Api.Identity.AiUsageReservation", b =>
                 {
                     b.HasOne("Kuechenfuchs.Api.Identity.Household", null)
                         .WithMany()

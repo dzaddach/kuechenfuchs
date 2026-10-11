@@ -39,6 +39,7 @@ services:
       Ai__MaxInputTokens: ${AI_MAX_INPUT_TOKENS:-16000}
       Ai__MaxOutputTokens: ${AI_MAX_OUTPUT_TOKENS:-1500}
       Ai__TimeoutSeconds: ${AI_TIMEOUT_SECONDS:-30}
+      Ai__ReservationExpirationSeconds: ${AI_RESERVATION_EXPIRATION_SECONDS:-180}
       Ai__MaxPromptCharacters: ${AI_MAX_PROMPT_CHARACTERS:-2000}
       Ai__InputUsdPerMillionTokens: ${AI_INPUT_USD_PER_MILLION_TOKENS:-0}
       Ai__OutputUsdPerMillionTokens: ${AI_OUTPUT_USD_PER_MILLION_TOKENS:-0}

@@ -9,6 +9,7 @@ public sealed class AiRecipeOptions
     public int MaxInputTokens { get; set; } = 8_000;
     public int MaxOutputTokens { get; set; } = 1_500;
     public int TimeoutSeconds { get; set; } = 30;
+    public int ReservationExpirationSeconds { get; set; } = 180;
     public int MaxPromptCharacters { get; set; } = 2_000;
     public decimal InputUsdPerMillionTokens { get; set; }
     public decimal OutputUsdPerMillionTokens { get; set; }
@@ -32,5 +33,6 @@ public sealed class AiRecipeOptions
         && MaxInputTokens > 0
         && MaxOutputTokens > 0
         && TimeoutSeconds is >= 1 and <= 120
+        && ReservationExpirationSeconds >= 1
         && MaxPromptCharacters is >= 20 and <= 10_000;
 }

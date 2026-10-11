@@ -45,7 +45,8 @@ public sealed record AiProviderResponse(
     int PromptTokens,
     int CompletionTokens,
     string? Refusal,
-    AiProviderFailure Failure);
+    AiProviderFailure Failure,
+    bool DefinitelyNoCharge = false);
 
 public enum AiProviderFailure
 {

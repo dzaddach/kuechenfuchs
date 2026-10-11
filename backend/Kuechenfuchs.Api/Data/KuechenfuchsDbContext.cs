@@ -16,6 +16,7 @@ public sealed class KuechenfuchsDbContext(
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
     public DbSet<RecipeFavorite> RecipeFavorites => Set<RecipeFavorite>();
     public DbSet<AiUsageBudget> AiUsageBudgets => Set<AiUsageBudget>();
+    public DbSet<AiUsageReservation> AiUsageReservations => Set<AiUsageReservation>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<Unit> Units => Set<Unit>();
 
@@ -116,11 +117,30 @@ public sealed class KuechenfuchsDbContext(
             entity.HasKey(usage => new { usage.HouseholdId, usage.MonthStart });
             entity.Property(usage => usage.SpentUsd).HasPrecision(14, 8).IsRequired();
             entity.Property(usage => usage.ReservedUsd).HasPrecision(14, 8).IsRequired();
-            entity.Property(usage => usage.ReservationUpdatedAt);
             entity.Property(usage => usage.RequestCount).IsRequired();
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(usage => usage.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<AiUsageReservation>(entity =>
+        {
+            entity.HasKey(reservation => reservation.Id);
+            entity.Property(reservation => reservation.ReservedUsd).HasPrecision(14, 8).IsRequired();
+            entity.Property(reservation => reservation.FinalizedUsd).HasPrecision(14, 8);
+            entity.Property(reservation => reservation.IsEstimated).IsRequired();
+            entity.Property(reservation => reservation.CreatedAt).IsRequired();
+            entity.HasIndex(reservation => new
+            {
+                reservation.HouseholdId,
+                reservation.MonthStart,
+                reservation.FinalizedUsd,
+                reservation.CreatedAt
+            });
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(reservation => reservation.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

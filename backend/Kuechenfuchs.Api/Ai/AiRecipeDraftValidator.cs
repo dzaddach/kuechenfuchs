@@ -112,13 +112,16 @@ public static class AiRecipeDraftValidator
     }
 
     public static decimal MaximumRequestCost(AiRecipeOptions settings) =>
-        (settings.MaxInputTokens * settings.InputUsdPerMillionTokens
-            + settings.MaxOutputTokens * settings.OutputUsdPerMillionTokens) / 1_000_000m;
+        RoundUpUsd((settings.MaxInputTokens * settings.InputUsdPerMillionTokens
+            + settings.MaxOutputTokens * settings.OutputUsdPerMillionTokens) / 1_000_000m);
 
     public static decimal ActualCost(AiRecipeOptions settings, int promptTokens, int completionTokens) =>
-        (promptTokens * settings.InputUsdPerMillionTokens
-            + completionTokens * settings.OutputUsdPerMillionTokens) / 1_000_000m;
+        RoundUpUsd((promptTokens * settings.InputUsdPerMillionTokens
+            + completionTokens * settings.OutputUsdPerMillionTokens) / 1_000_000m);
 
     private static bool HasText(string? value, int maxLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= maxLength;
+
+    private static decimal RoundUpUsd(decimal amount) =>
+        decimal.Ceiling(amount * 100_000_000m) / 100_000_000m;
 }

@@ -2,12 +2,13 @@ services:
   api:
     environment:
       Ai__Enabled: "true"
-      Ai__RequestsPerMinutePerUser: "12"
+      Ai__RequestsPerMinutePerUser: "50"
       Ai__MaxMonthlyRequestsPerHousehold: "100"
-      Ai__MonthlyBudgetUsd: "0.0091"
+      Ai__MonthlyBudgetUsd: "0.007"
       Ai__MaxInputTokens: "16000"
       Ai__MaxOutputTokens: "1500"
-      Ai__TimeoutSeconds: "1"
+      Ai__TimeoutSeconds: "8"
+      Ai__ReservationExpirationSeconds: "2"
       Ai__MaxPromptCharacters: "2000"
       Ai__InputUsdPerMillionTokens: "0.1"
       Ai__OutputUsdPerMillionTokens: "0.1"

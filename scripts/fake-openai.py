@@ -1,7 +1,53 @@
 #!/usr/bin/env python3
 import json
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+MAX_REQUEST_BYTES = 256 * 1024
+
+
+def read_exactly(stream, length):
+    body = bytearray()
+    while len(body) < length:
+        part = stream.read(length - len(body))
+        if not part:
+            raise ValueError("request body ended before its declared length")
+        body.extend(part)
+    return bytes(body)
+
+
+def read_request_body(stream, headers):
+    transfer_encoding = headers.get("Transfer-Encoding", "").lower()
+    if "chunked" in [value.strip() for value in transfer_encoding.split(",")]:
+        body = bytearray()
+        while True:
+            line = stream.readline(8192)
+            if not line.endswith(b"\r\n"):
+                raise ValueError("invalid chunk-size line")
+            try:
+                chunk_size = int(line[:-2].split(b";", 1)[0], 16)
+            except ValueError as exception:
+                raise ValueError("invalid chunk size") from exception
+            if chunk_size < 0 or len(body) + chunk_size > MAX_REQUEST_BYTES:
+                raise ValueError("request body exceeds the configured limit")
+            if chunk_size == 0:
+                while True:
+                    trailer = stream.readline(8192)
+                    if trailer == b"\r\n":
+                        return bytes(body)
+                    if not trailer or not trailer.endswith(b"\r\n"):
+                        raise ValueError("invalid chunk trailer")
+            body.extend(read_exactly(stream, chunk_size))
+            if read_exactly(stream, 2) != b"\r\n":
+                raise ValueError("invalid chunk terminator")
+
+    try:
+        content_length = int(headers.get("Content-Length", ""))
+    except ValueError as exception:
+        raise ValueError("a valid Content-Length or chunked encoding is required") from exception
+    if content_length < 0 or content_length > MAX_REQUEST_BYTES:
+        raise ValueError("request body exceeds the configured limit")
+    return read_exactly(stream, content_length)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -14,12 +60,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
-        request = json.loads(self.rfile.read(length))
+        try:
+            request = json.loads(read_request_body(self.rfile, self.headers))
+        except (ValueError, json.JSONDecodeError):
+            self.send_error(400, "Invalid request body")
+            return
         prompt = json.loads(request["messages"][1]["content"])["Prompt"]
 
         if prompt == "FAKE: timeout":
-            time.sleep(3)
+            time.sleep(10)
+            self.send_json(200, self.completion())
+            return
+        if prompt == "FAKE: delayed success":
+            time.sleep(6)
             self.send_json(200, self.completion())
             return
         if prompt == "FAKE: provider rate limit":
@@ -79,4 +132,5 @@ class Handler(BaseHTTPRequestHandler):
             return
 
 
-HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
