@@ -1,0 +1,39 @@
+services:
+  api:
+    environment:
+      Ai__Enabled: "true"
+      Ai__RequestsPerMinutePerUser: "12"
+      Ai__MaxMonthlyRequestsPerHousehold: "100"
+      Ai__MonthlyBudgetUsd: "0.0091"
+      Ai__MaxInputTokens: "16000"
+      Ai__MaxOutputTokens: "1500"
+      Ai__TimeoutSeconds: "1"
+      Ai__MaxPromptCharacters: "2000"
+      Ai__InputUsdPerMillionTokens: "0.1"
+      Ai__OutputUsdPerMillionTokens: "0.1"
+      Ai__OpenAI__ApiKey: "fake-test-key-only"
+      Ai__OpenAI__Model: "fake-test-model"
+      Ai__OpenAI__BaseUrl: "http://fake-openai:8080/v1/"
+    depends_on:
+      fake-openai:
+        condition: service_healthy
+
+  fake-openai:
+    image: python:3.13-alpine
+    profiles:
+      - p4-test
+    command: ["python", "/test/fake-openai.py"]
+    volumes:
+      - ./scripts/fake-openai.py:/test/fake-openai.py:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=1)"
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+    networks:
+      - backend

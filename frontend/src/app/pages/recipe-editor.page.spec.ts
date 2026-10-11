@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../auth/auth.service';
 import { RecipeApiService, RecipeWrite } from '../recipes/recipe-api.service';
@@ -115,5 +115,47 @@ describe('RecipeEditorPage', () => {
     const payload = save.mock.calls[0][1] as RecipeWrite;
     expect(payload.baseServings).toBe(2);
     expect(payload.ingredients[0].amount).toBe(250);
+  });
+
+  it('loads an AI draft as an editable preview and only saves it on explicit takeover', async () => {
+    const { save } = setup();
+    const originalState = history.state;
+    history.replaceState({
+      aiRecipeDraft: {
+        name: 'Kartoffelpfanne',
+        description: 'Schnelles Abendessen.',
+        baseServings: 3,
+        preparationMinutes: 25,
+        category: 'Abendessen',
+        tags: ['schnell'],
+        ingredients: [{ name: 'Kartoffeln', amount: 500, unitCode: 'g', foodId: null }],
+        steps: [{ description: 'Kartoffeln braten.' }],
+      },
+      aiWarnings: ['Bitte Mengen prüfen.'],
+    }, '');
+    await TestBed.compileComponents();
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(RecipeEditorPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('#recipe-name').value).toBe('Kartoffelpfanne');
+    expect(fixture.nativeElement.textContent).toContain('Bitte Mengen prüfen.');
+    expect(fixture.nativeElement.querySelector('.save-button').textContent).toContain('Rezept übernehmen');
+    expect(save).not.toHaveBeenCalled();
+
+    const name = fixture.nativeElement.querySelector('#recipe-name') as HTMLInputElement;
+    name.value = 'Meine angepasste Kartoffelpfanne';
+    name.dispatchEvent(new Event('input'));
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0][1]).toMatchObject({ name: 'Meine angepasste Kartoffelpfanne', baseServings: 3 });
+    expect(router.navigate).toHaveBeenCalledWith(['/recipes', 'saved']);
+    history.replaceState(originalState, '');
   });
 });

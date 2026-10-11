@@ -1,11 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
+using Kuechenfuchs.Api.Ai;
 using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.Identity;
 using Kuechenfuchs.Api.Recipes;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using Npgsql;
@@ -45,6 +48,16 @@ var connectionString = new NpgsqlConnectionStringBuilder
 }.ConnectionString;
 
 builder.Services.AddDbContext<KuechenfuchsDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddOpenApi("v1");
+builder.Services.Configure<AiRecipeOptions>(builder.Configuration.GetSection("Ai"));
+builder.Services.AddHttpClient<OpenAiRecipeProvider>(client =>
+{
+    var timeout = builder.Configuration.GetValue("Ai:TimeoutSeconds", 30);
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(timeout, 1, 120));
+    client.MaxResponseContentBufferSize = 256 * 1024;
+});
+builder.Services.AddScoped<IAiRecipeProvider>(services => services.GetRequiredService<OpenAiRecipeProvider>());
+builder.Services.AddScoped<IAiRecipeDraftService, AiRecipeDraftService>();
 builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
         options.User.RequireUniqueEmail = true;
@@ -111,11 +124,41 @@ if (!string.IsNullOrWhiteSpace(dataProtectionPath))
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
+    var aiRequestsPerMinute = builder.Configuration.GetValue("Ai:RequestsPerMinutePerUser", 8);
+    if (aiRequestsPerMinute < 1)
+    {
+        throw new InvalidOperationException("Ai:RequestsPerMinutePerUser must be at least 1.");
+    }
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new ProblemDetails
+            {
+                Status = StatusCodes.Status429TooManyRequests,
+                Title = "Request rate limit reached"
+            },
+            cancellationToken);
+    };
     options.AddFixedWindowLimiter("login", limiter =>
     {
         limiter.PermitLimit = 10;
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
+    });
+    options.AddPolicy("ai-draft", context =>
+    {
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = aiRequestsPerMinute,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
     });
 });
 
@@ -134,10 +177,11 @@ if (args.Contains("--bootstrap-admin", StringComparer.Ordinal))
 if (app.Environment.IsDevelopment())
 {
     await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: true);
+    app.MapOpenApi("/api/openapi/{documentName}.json");
 }
 
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
     var isWriteMethod = HttpMethods.IsPost(context.Request.Method)
@@ -268,6 +312,7 @@ auth.MapPost(
 
 var api = app.MapGroup("/api/v1").RequireAuthorization();
 api.MapRecipeEndpoints();
+api.MapAiRecipeEndpoints();
 api.MapGet(
     "/me",
     async Task<IResult> (ClaimsPrincipal principal, KuechenfuchsDbContext database) =>

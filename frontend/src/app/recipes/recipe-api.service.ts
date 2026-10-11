@@ -44,6 +44,20 @@ export interface RecipeUnit {
   dimension: string;
 }
 
+export interface AiRecipeDraftRequest {
+  prompt: string;
+  desiredServings: number | null;
+  availableIngredients: string[];
+  preferences: string[];
+  avoidIngredients: string[];
+  externalProcessingConfirmed: boolean;
+}
+
+export interface AiRecipeDraftResponse {
+  recipe: RecipeWrite;
+  warnings: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecipeApiService {
   private readonly auth = inject(AuthService);
@@ -59,6 +73,18 @@ export class RecipeApiService {
 
   async units(householdId: string): Promise<RecipeUnit[]> {
     return this.request(`/api/v1/households/${householdId}/units`);
+  }
+
+  async createAiDraft(householdId: string, request: AiRecipeDraftRequest): Promise<AiRecipeDraftResponse> {
+    const csrf = await this.auth.getCsrfToken();
+    const response = await fetch(`/api/v1/households/${householdId}/ai/recipe-drafts`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-KF-CSRF': csrf },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) throw new Error(await this.errorMessage(response));
+    return await response.json() as AiRecipeDraftResponse;
   }
 
   async favorites(householdId: string): Promise<string[]> {

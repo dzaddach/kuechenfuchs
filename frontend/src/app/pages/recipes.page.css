@@ -1,4 +1,7 @@
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 24px; }
+.heading-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 9px; }
+.ai-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid var(--line); border-radius: 13px; color: var(--green); background: var(--surface); font-size: 11px; font-weight: 700; text-decoration: none; }
+.ai-button app-icon { width: 16px; height: 16px; }
 .eyebrow { margin: 0 0 9px; color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: 1.25px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { display: flex; align-items: center; gap: 11px; margin-bottom: 8px; font-family: Manrope, 'DM Sans', sans-serif; font-size: clamp(29px,3vw,38px); letter-spacing: -1.5px; }
@@ -48,6 +51,8 @@ h1 { display: flex; align-items: center; gap: 11px; margin-bottom: 8px; font-fam
 @media (max-width: 1100px) { .recipe-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 700px) {
   .page-heading { align-items: start; }
+  .heading-actions { align-items: stretch; flex-direction: column; }
+  .ai-button { min-height: 40px; font-size: 10px; }
   .primary-button { min-height: 42px; padding: 0 11px; font-size: 10px; white-space: nowrap; }
   .primary-button app-icon { width: 15px; height: 15px; }
   h1 { font-size: 29px; }

@@ -15,6 +15,7 @@ public sealed class KuechenfuchsDbContext(
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
     public DbSet<RecipeFavorite> RecipeFavorites => Set<RecipeFavorite>();
+    public DbSet<AiUsageBudget> AiUsageBudgets => Set<AiUsageBudget>();
     public DbSet<Food> Foods => Set<Food>();
     public DbSet<Unit> Units => Set<Unit>();
 
@@ -107,6 +108,19 @@ public sealed class KuechenfuchsDbContext(
                 .WithMany(recipe => recipe.Favorites)
                 .HasForeignKey(favorite => new { favorite.HouseholdId, favorite.RecipeId })
                 .HasPrincipalKey(recipe => new { recipe.HouseholdId, recipe.Id })
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<AiUsageBudget>(entity =>
+        {
+            entity.HasKey(usage => new { usage.HouseholdId, usage.MonthStart });
+            entity.Property(usage => usage.SpentUsd).HasPrecision(14, 8).IsRequired();
+            entity.Property(usage => usage.ReservedUsd).HasPrecision(14, 8).IsRequired();
+            entity.Property(usage => usage.ReservationUpdatedAt);
+            entity.Property(usage => usage.RequestCount).IsRequired();
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(usage => usage.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

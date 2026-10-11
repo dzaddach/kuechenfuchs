@@ -1,0 +1,38 @@
+@baseUrl = http://localhost:8080
+@householdId = replace-with-your-household-id
+@sessionCookie = replace-with-your-KF.Identity-cookie
+
+### Get a CSRF request token (send the authenticated session cookie)
+# @name csrf
+GET {{baseUrl}}/api/auth/csrf
+Cookie: {{sessionCookie}}
+
+### Generate an unsaved recipe draft (requires valid cookie and CSRF token)
+POST {{baseUrl}}/api/v1/households/{{householdId}}/ai/recipe-drafts
+Cookie: {{sessionCookie}}
+X-KF-CSRF: {{csrf.response.body.requestToken}}
+Content-Type: application/json
+
+{
+  "prompt": "Ich habe Kartoffeln und Paprika und möchte ein schnelles Abendessen kochen.",
+  "desiredServings": 3,
+  "availableIngredients": ["Kartoffeln", "Paprika"],
+  "preferences": ["schnell"],
+  "avoidIngredients": [],
+  "externalProcessingConfirmed": true
+}
+
+### Missing consent is rejected with HTTP 400 (also requires cookie and CSRF)
+POST {{baseUrl}}/api/v1/households/{{householdId}}/ai/recipe-drafts
+Cookie: {{sessionCookie}}
+X-KF-CSRF: {{csrf.response.body.requestToken}}
+Content-Type: application/json
+
+{
+  "prompt": "Ein einfaches Abendessen bitte.",
+  "desiredServings": 2,
+  "availableIngredients": [],
+  "preferences": [],
+  "avoidIngredients": [],
+  "externalProcessingConfirmed": false
+}

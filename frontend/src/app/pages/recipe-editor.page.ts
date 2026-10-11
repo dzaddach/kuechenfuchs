@@ -11,12 +11,20 @@ import { RecipeApiService, RecipeRecord, RecipeUnit, RecipeWrite } from '../reci
   template: `
     <a class="back-link" routerLink="/recipes"><app-icon name="back" /> Zurück zu meinen Rezepten</a>
     <header class="editor-heading">
-      <div><p class="eyebrow">DEINE SAMMLUNG</p><h1>{{ recipeId ? 'Rezept bearbeiten' : 'Ein Rezept für dich' }}</h1>
-        <p class="intro">Halte fest, was auf deinen Tisch kommt.</p></div>
+      <div><p class="eyebrow">{{ fromAi() ? 'KI-ENTWURF' : 'DEINE SAMMLUNG' }}</p>
+        <h1>{{ recipeId ? 'Rezept bearbeiten' : fromAi() ? 'Entwurf prüfen und anpassen' : 'Ein Rezept für dich' }}</h1>
+        <p class="intro">{{ fromAi() ? 'Prüfe alle Angaben und bearbeite den Entwurf nach deinem Geschmack.' : 'Halte fest, was auf deinen Tisch kommt.' }}</p></div>
     </header>
     @if (loading()) { <p role="status">Rezept wird geladen …</p> }
     @if (error()) { <p class="validation-summary" role="alert">{{ error() }}</p> }
     @if (!loading()) {
+      @if (fromAi() && aiWarnings().length) {
+        <section class="validation-summary" aria-label="Hinweise zum KI-Entwurf">
+          <strong>Bitte beachte diese Hinweise:</strong>
+          <ul>@for (warning of aiWarnings(); track $index) { <li>{{ warning }}</li> }</ul>
+          <p>KI-Vorschläge können Fehler enthalten. Prüfe Zutaten, Mengen und mögliche Allergene.</p>
+        </section>
+      }
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <section class="form-card">
           <div class="form-section-heading"><span class="step-number">1</span><div><h2>Das Grundrezept</h2><p>Ein guter Name macht Appetit.</p></div></div>
@@ -83,7 +91,8 @@ import { RecipeApiService, RecipeRecord, RecipeUnit, RecipeWrite } from '../reci
         @if (notice()) { <p class="demo-result" role="status">{{ notice() }}</p> }
         @if (form.invalid && submitted()) { <p class="validation-summary" role="alert">Ein paar Pflichtfelder brauchen noch deine Aufmerksamkeit.</p> }
         <div class="form-actions"><a class="cancel-button" routerLink="/recipes">Abbrechen</a>
-          <button class="save-button" type="submit" [disabled]="saving()"><app-icon name="check" /> {{ saving() ? 'Speichern …' : 'Rezept speichern' }}</button></div>
+          <button class="save-button" type="submit" [disabled]="saving()"><app-icon name="check" />
+            {{ saving() ? 'Speichern …' : fromAi() ? 'Rezept übernehmen' : 'Rezept speichern' }}</button></div>
       </form>
       @if (recipeId && recipe()) {
         <section class="form-actions archive-action"><button class="cancel-button" type="button" (click)="archive()">Rezept archivieren</button></section>
@@ -99,12 +108,15 @@ export class RecipeEditorPage {
   private readonly api = inject(RecipeApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly navigationState = this.router.getCurrentNavigation()?.extras.state ?? history.state;
   readonly recipeId = this.route.snapshot.paramMap.get('id');
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly submitted = signal(false);
   readonly error = signal('');
   readonly notice = signal('');
+  readonly fromAi = signal(false);
+  readonly aiWarnings = signal<string[]>([]);
   readonly units = signal<RecipeUnit[]>([]);
   readonly recipe = signal<RecipeRecord | null>(null);
   readonly targetServings = signal(2);
@@ -171,6 +183,8 @@ export class RecipeEditorPage {
       if (this.recipeId) {
         this.recipe.set(saved);
         this.notice.set('Rezept gespeichert.');
+      } else if (this.fromAi()) {
+        await this.router.navigate(['/recipes', saved.id]);
       } else {
         await this.router.navigate(['/recipes']);
       }
@@ -219,6 +233,27 @@ export class RecipeEditorPage {
         this.form.setControl('ingredients', this.fb.array(recipe.ingredients.map((ingredient) =>
           this.newIngredient(ingredient.name, ingredient.amount?.toString() ?? '', ingredient.unitCode, ingredient.foodId ?? ''))));
         this.form.setControl('steps', this.fb.array(recipe.steps.map((step) => this.newStep(step.description))));
+      } else {
+        const state = isRecord(this.navigationState) ? this.navigationState : {};
+        const draft = state['aiRecipeDraft'];
+        if (isRecipeWrite(draft)) {
+          this.fromAi.set(true);
+          this.aiWarnings.set(Array.isArray(state['aiWarnings'])
+            ? state['aiWarnings'].filter((warning): warning is string => typeof warning === 'string')
+            : []);
+          this.form.patchValue({
+            name: draft.name,
+            description: draft.description,
+            servings: draft.baseServings,
+            minutes: draft.preparationMinutes,
+            category: draft.category,
+            tags: draft.tags.join(', '),
+          });
+          this.targetServings.set(draft.baseServings);
+          this.form.setControl('ingredients', this.fb.array(draft.ingredients.map((ingredient) =>
+            this.newIngredient(ingredient.name, ingredient.amount?.toString() ?? '', ingredient.unitCode, ingredient.foodId ?? ''))));
+          this.form.setControl('steps', this.fb.array(draft.steps.map((step) => this.newStep(step.description))));
+        }
       }
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'Das Rezept konnte nicht geladen werden.');
@@ -253,4 +288,26 @@ function positiveOptionalAmount(control: AbstractControl<string>): ValidationErr
   return Number.isFinite(amount) && amount > 0 && amount <= 1_000_000 && /^\d+(?:\.\d{1,3})?$/.test(raw)
     ? null
     : { amount: true };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isRecipeWrite(value: unknown): value is RecipeWrite {
+  if (!isRecord(value)) return false;
+  return typeof value['name'] === 'string'
+    && typeof value['description'] === 'string'
+    && Number.isInteger(value['baseServings'])
+    && Number.isInteger(value['preparationMinutes'])
+    && typeof value['category'] === 'string'
+    && Array.isArray(value['tags']) && value['tags'].every((tag) => typeof tag === 'string')
+    && Array.isArray(value['ingredients']) && value['ingredients'].every((ingredient) =>
+      isRecord(ingredient)
+      && typeof ingredient['name'] === 'string'
+      && (ingredient['amount'] === null || typeof ingredient['amount'] === 'number')
+      && typeof ingredient['unitCode'] === 'string'
+      && (ingredient['foodId'] === null || typeof ingredient['foodId'] === 'string'))
+    && Array.isArray(value['steps']) && value['steps'].every((step) =>
+      isRecord(step) && typeof step['description'] === 'string');
 }

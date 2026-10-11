@@ -27,7 +27,7 @@ describe('App shell', () => {
     expect(fixture.nativeElement.querySelectorAll('.mobile-nav-link')).toHaveLength(5);
     expect(fixture.nativeElement.querySelector('.sidebar').textContent).toContain('Meine Rezepte');
     expect(fixture.nativeElement.textContent).toContain('Einstellungen');
-    expect(fixture.nativeElement.textContent).toContain('Demnächst');
+    expect(fixture.nativeElement.querySelector('.sidebar-note a').textContent).toContain('KI-Rezeptassistent öffnen');
 
     (fixture.nativeElement.querySelector('.theme-toggle') as HTMLButtonElement).click();
     fixture.detectChanges();

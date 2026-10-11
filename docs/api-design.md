@@ -1,6 +1,6 @@
 # Küchenfuchs – API-Design
 
-**Stand:** 11. Oktober 2026 · **Status:** P3-Rezeptvertrag umgesetzt; übrige Bereiche bleiben Entwurf
+**Stand:** 11. Oktober 2026 · **Status:** P3-Rezeptvertrag und P4-PWA-KI-Entwurf umgesetzt; externe ChatGPT-Actions bleiben Entwurf
 
 ## Konventionen
 
@@ -56,9 +56,28 @@ Alle Routen liegen in der autorisierten API-Gruppe und prüfen die Haushaltsmitg
 
 ## KI- und externe ChatGPT-Endpunkte
 
-### PWA-KI-Assistent (frühe Ausbaustufe)
+### P4: PWA-KI-Assistent
 
-`POST /api/v1/households/{hid}/ai/recipe-drafts` nimmt eine begrenzte Anfrage an (Prompt, gewünschte Portionen, optionale Zutaten/Allergene). Antwort ist ein **nicht gespeicherter** Entwurf mit validiertem Schema, Kennzeichnung unsicherer Felder und gegebenenfalls Fehler-/Refusal-Status. Die anschließende Speicherung erfolgt ausschließlich mit dem normalen `POST .../recipes` nach sichtbarer Nutzerbestätigung.
+`POST /api/v1/households/{hid}/ai/recipe-drafts` erwartet eine cookie-authentifizierte Anfrage mit gültigem `X-KF-CSRF`-Token und serverseitig bestätigter Haushaltsmitgliedschaft:
+
+```json
+{
+  "prompt": "Ein schnelles Abendessen mit Kartoffeln",
+  "desiredServings": 3,
+  "availableIngredients": ["Kartoffeln", "Paprika"],
+  "preferences": ["schnell"],
+  "avoidIngredients": [],
+  "externalProcessingConfirmed": true
+}
+```
+
+`externalProcessingConfirmed` muss `true` sein; die Oberfläche zeigt unmittelbar vor dem Aufruf die Verarbeitung durch OpenAI an. Anfragegrenzen: Prompt gemäß Konfiguration (lokaler Beispielwert 2.000 Zeichen), bis zu 30 vorhandene Zutaten, 12 Wünsche und 20 zu vermeidende Zutaten; einzelne Werte sind ebenfalls längenbegrenzt.
+
+Erfolg liefert `200 OK` mit `recipe` in der Form des bestehenden Rezept-Schreibvertrags (`name`, `description`, `baseServings`, `preparationMinutes`, `category`, `tags`, `ingredients`, `steps`) sowie `warnings`. Der Entwurf wird nicht gespeichert. Alle Antwortfelder werden serverseitig gegen Längen-/Anzahl-/Portions-/Zeit-/Mengenlimits und den globalen Einheitenkatalog geprüft. Unbekannte oder nicht unterstützte Einheiten, unplausible Mengen, fehlende Pflichtfelder, ungültiges JSON oder Abweichung von angeforderten Portionen ergeben `502 Bad Gateway`; unbekannte Lebensmittel werden nicht automatisch verknüpft (`foodId: null`) und als Hinweis ausgegeben. `amount: null` bleibt eine unbekannte Menge und erzeugt einen sichtbaren Prüfhinweis; sie ist niemals eine Nullmenge. Texte werden in Angular ausschließlich als Text dargestellt.
+
+Fehlerantworten: `400` bei ungültigen Eingaben oder fehlender externer Einwilligung; `401` ohne Anmeldung; `404` bei fehlender Haushaltsmitgliedschaft; `422` bei einer ausdrücklichen Provider-Ablehnung; `429` bei KI-Ratenlimit oder Monatsbudget; `502` bei Provider-/Schemafehlern; `503`, wenn die KI-Konfiguration unvollständig ist. Providerdetails und Eingabeinhalte werden nicht in Problem Details oder normalen Logs ausgegeben.
+
+Die Speicherung erfolgt nach Prüfung/Bearbeitung im vorhandenen Rezepteditor und ausschließlich über das bestehende `POST /api/v1/households/{hid}/recipes` mit CSRF-Schutz. Der Entwurfsendpunkt schreibt weder Rezepte noch temporäre Entitäten in die Datenbank; die monatliche Budgetentität enthält nur aggregierte Request-, Kosten- und Reservierungswerte.
 
 ### ChatGPT-Actions (frühe Ausbaustufe nach Rezept-Grundablauf)
 

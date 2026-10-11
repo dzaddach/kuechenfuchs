@@ -35,6 +35,14 @@ Der `api`-Dienst erhält keine `Bootstrap__*`-Variablen. Der nur bei `--profile 
 
 Danach ist die Angular-Anwendung standardmäßig unter <http://localhost:8080> verfügbar. API-Liveness und die PostgreSQL-Bereitschaft sind über `/api/health/live` und `/api/health/ready` erreichbar. Caddy lauscht für lokale Entwicklung ausschließlich auf `127.0.0.1`; `HTTP_PORT` in `.env` ändert den Host-Port. Es gibt kein TLS und keine öffentliche Domain. Der PostgreSQL-Dienst hat keinen Host-Port. Der Ready-Check bestätigt eine tatsächliche Datenbankverbindung.
 
+### Optionale OpenAI-Konfiguration (P4)
+
+KI-Rezeptentwürfe bleiben standardmäßig deaktiviert. Um sie lokal bewusst zu aktivieren, setze in der nicht versionierten `.env` `AI_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_MONTHLY_BUDGET_USD` und die zum Modell und zur aktuellen OpenAI-Preisseite passenden Werte `AI_INPUT_USD_PER_MILLION_TOKENS` / `AI_OUTPUT_USD_PER_MILLION_TOKENS`. `gpt-4.1-mini` ist die dokumentierte Anfangswahl; Preis und Modell bitte vor Aktivierung erneut prüfen. Das Secret wird von Compose ausschließlich an den API-Container übergeben, nicht an Caddy oder Angular. Ohne Schlüssel, positive Preise und positives Budget verweigert die API KI-Aufrufe ausdrücklich.
+
+Token-, Prompt-, Monats- und Timeoutgrenzen sind über die `AI_*`-Variablen in `.env.example` anpassbar. Monatsbudget und -requestzahl je Haushalt sind in PostgreSQL gespeichert; das minutenbasierte Requestlimit gilt pro Benutzer und API-Prozess. Die Integration läuft im Same-Origin-Cookie-Kontext und unterliegt der zentralen CSRF-Prüfung. Die Oberfläche verlangt vor jedem Provideraufruf eine ausdrückliche Bestätigung der externen Verarbeitung.
+
+Der P4-Compose-Test über `bash scripts/test-p4-ai-recipes.sh` aktiviert ausschließlich ein eigenes Testprofil mit lokalem Fake-Provider, temporärem Test-Key und Test-Tarifen. Er baut einen isolierten Stack mit frischer Datenbank, führt die Migrationen aus und entfernt danach Container, Netzwerke und Testvolume. Er benötigt weder einen OpenAI-Key noch eine Internetverbindung zum KI-Anbieter.
+
 Kommandos aus dem Repository-Stamm:
 
 | Aktion | Kommando | Verhalten |
