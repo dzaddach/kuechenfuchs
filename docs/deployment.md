@@ -8,13 +8,30 @@ Voraussetzung ist Docker mit Docker Compose v2.29 oder neuer. Im Repository-Stam
 
 ```sh
 cp .env.example .env
-# .env ausfüllen: INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD,
-# INITIAL_HOUSEHOLD_NAME und POSTGRES_PASSWORD. Bootstrap-Passwort erzeugen:
+# .env ausfüllen: POSTGRES_PASSWORD. Für die einmalige Einrichtung
+# zusätzlich INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD und
+# INITIAL_HOUSEHOLD_NAME setzen. Bootstrap-Passwort erzeugen:
 openssl rand -base64 32
 docker compose up --build --detach
+docker compose --profile bootstrap run --rm bootstrap
 ```
 
-Das Bootstrap-Passwort muss mindestens 14 Zeichen enthalten sowie Groß-/Kleinbuchstaben, eine Ziffer und ein Sonderzeichen. Bei leerer Datenbank führt die API die versionierten EF-Core-Migrationen aus und legt den Initialadministrator, die Administratorrolle, den ersten Haushalt und dessen Owner-Mitgliedschaft an. Ohne vollständige Bootstrap-Konfiguration schlägt der API-Start explizit fehl; es gibt kein Standardpasswort. Die Bootstrap-Variablen werden bei bereits vorhandenen Benutzern ignoriert und ändern keine bestehenden Zugangsdaten. Änderungen am Passwort müssen über einen dafür vorgesehenen Benutzerverwaltungsprozess erfolgen.
+Das Bootstrap-Passwort muss mindestens 14 Zeichen enthalten sowie Groß-/Kleinbuchstaben, eine Ziffer und ein Sonderzeichen. API-Start führt die versionierten EF-Core-Migrationen aus, enthält jedoch keine Bootstrap-Secrets und kann auch mit leerer Benutzertabelle laufen. Der explizite Bootstrap-Befehl legt bei leerer Datenbank den Initialadministrator, die Administratorrolle, den ersten Haushalt und dessen Owner-Mitgliedschaft transaktional an. Ohne vollständige Bootstrap-Konfiguration schlägt dieser einmalige Befehl explizit fehl; es gibt kein Standardpasswort.
+
+**Bootstrap-Secrets nach dem Erfolg entfernen:**
+
+1. Den Erfolg des einmaligen Befehls (`docker compose --profile bootstrap run --rm bootstrap`) abwarten. Der Befehl wartet auf die gesunde API und damit abgeschlossene Migrationen. Der Einmal-Container wird mit `--rm` entfernt; die Zugangsdaten werden nicht in der dauerhaften API-Containerkonfiguration gespeichert.
+2. Die Werte `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD` und `INITIAL_HOUSEHOLD_NAME` aus der lokalen `.env` löschen oder leeren. Die Datei nicht committen. Bootstrap-Secrets sind danach nicht mehr für einen erneuten Lauf verfügbar.
+3. Die API ohne Bootstrap-Konfiguration neu erstellen und anschließend Anmeldung sowie Haushalt prüfen:
+
+   ```sh
+   docker compose up --detach --force-recreate api
+   docker compose ps
+   ```
+
+4. Die Datenbank und ihre persistenten Volumes nicht entfernen. Der Administrator und Haushalt liegen in PostgreSQL und bleiben beim API-Neustart erhalten. Ein erneuter Bootstrap-Lauf mit bestehendem Benutzerbestand ist idempotent und ändert keine bestehenden Zugangsdaten.
+
+Der `api`-Dienst erhält keine `Bootstrap__*`-Variablen. Der nur bei `--profile bootstrap` gestartete Dienst bekommt sie ausschließlich für den Einmallauf; Tests prüfen, dass sein Container anschließend entfernt ist, die laufende API keine entsprechenden Variablen enthält und Login/Haushaltszuordnung nach Entfernen der Prozesswerte und API-Neuerstellung erhalten bleiben.
 
 Danach ist die Angular-Anwendung standardmäßig unter <http://localhost:8080> verfügbar. API-Liveness und die PostgreSQL-Bereitschaft sind über `/api/health/live` und `/api/health/ready` erreichbar. Caddy lauscht für lokale Entwicklung ausschließlich auf `127.0.0.1`; `HTTP_PORT` in `.env` ändert den Host-Port. Es gibt kein TLS und keine öffentliche Domain. Der PostgreSQL-Dienst hat keinen Host-Port. Der Ready-Check bestätigt eine tatsächliche Datenbankverbindung.
 
@@ -30,7 +47,7 @@ Kommandos aus dem Repository-Stamm:
 | Änderungen neu bauen und starten | `docker compose up --build --detach` | Baut Images neu und ersetzt nötige Container; persistente Daten bleiben erhalten. |
 | Stack entfernen | `docker compose down` | Entfernt Container und Netzwerke; persistentes PostgreSQL-Volume bleibt erhalten. |
 | P0 Build-/Smoke-Tests | `./scripts/test-p0.sh` | Prüft Compose-Konfiguration, baut Images, startet einen isolierten Test-Stack, prüft Dienste/Proxy/DB/Portisolation und ausgeliefertes Angular-Bundle, und entfernt danach den Test-Stack samt Testvolume. Bei Portkonflikt z. B. `HTTP_PORT=51287 ./scripts/test-p0.sh` verwenden. |
-| P2 Auth-Integrationstests | `./scripts/test-p2-auth.sh` | Isolierter Stack prüft Erstbootstrap, anonymen Zugriff, CSRF, Login, Cookie-Flags, Haushaltsisolation, Logout und Sitzungsablauf; Testvolume wird entfernt. |
+| P2 Auth-Integrationstests | `./scripts/test-p2-auth.sh` | Isolierter Stack prüft einmaligen Bootstrap im entfernten Container, geheime-freie API-Neuerstellung mit erhaltenem Benutzer/Haushalt, anonymen Zugriff, CSRF, Login, Cookie-Flags, Haushaltsisolation, Logout und Sitzungsablauf; Testvolume wird entfernt. |
 
 `docker compose down --volumes` löscht das lokale Datenbankvolume und damit gespeicherte Daten; nicht als normalen Stopp-/Neustartschritt verwenden. P2 führt in der lokalen Development-Compose-Umgebung versionierte EF-Core-Migrationen beim API-Start aus. Für produktive Deployments Migrationen als kontrollierten Release-Schritt vor dem API-Start ausführen; nicht parallel durch mehrere API-Replikate starten lassen.
 
@@ -55,9 +72,9 @@ Ausgeführt am 11.10.2026:
 | Prüfung | Ergebnis |
 |---|---|
 | `dotnet build backend/Kuechenfuchs.Api/Kuechenfuchs.Api.csproj --configuration Release` | Bestanden; 0 Warnungen, 0 Fehler. |
-| `npm --prefix frontend test` | Bestanden; 4 Testdateien, 9 Tests. |
+| `npm --prefix frontend test` | Bestanden; 4 Testdateien, 10 Tests. |
 | `npm --prefix frontend run build` | Bestanden; Angular-Produktionsbuild einschließlich Login-Seite. |
-| `HTTP_PORT=54392 ./scripts/test-p2-auth.sh` | Bestanden; frischer Compose-Stack führte EF-Migrationen und Bootstrap aus; CSRF, gültige/ungültige Anmeldung, HttpOnly/SameSite-Cookie, Haushaltsisolation, Logout und Sitzungsablauf geprüft. Test-Container, -Netzwerke und -Volumes entfernt. |
+| `HTTP_PORT=54392 ./scripts/test-p2-auth.sh` | Bestanden; frischer Compose-Stack führte EF-Migrationen aus, initialisierte Benutzer/Haushalt in einem mit `--rm` ausgeführten Bootstrap-Container und prüfte erfolgreiche Anmeldung nach API-Neuerstellung ohne Bootstrap-Werte, keine `Bootstrap__*`-Variablen im API-Container, CSRF (auch Haushalt-Mitglied-Schreibzugriff), HttpOnly/SameSite-Cookie, Haushaltsisolation, Logout und Sitzungsablauf. Test-Container, -Netzwerke und -Volumes entfernt. |
 | `bash -n scripts/test-p0.sh scripts/test-p2-auth.sh` und `git diff --check` | Bestanden. |
 
 ## Zieltopologie

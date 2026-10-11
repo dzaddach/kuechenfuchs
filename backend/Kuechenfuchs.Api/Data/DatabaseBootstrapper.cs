@@ -9,7 +9,8 @@ public static class DatabaseBootstrapper
     public static async Task InitializeAsync(
         IServiceProvider services,
         IConfiguration configuration,
-        bool applyMigrations)
+        bool applyMigrations,
+        bool requireInitialAdmin = false)
     {
         await using var scope = services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<KuechenfuchsDbContext>();
@@ -31,6 +32,11 @@ public static class DatabaseBootstrapper
             || string.IsNullOrWhiteSpace(password)
             || string.IsNullOrWhiteSpace(householdName))
         {
+            if (!requireInitialAdmin)
+            {
+                return;
+            }
+
             throw new InvalidOperationException(
                 "The database has no users. Configure Bootstrap:AdminEmail, Bootstrap:AdminPassword and Bootstrap:HouseholdName to create the first administrator.");
         }

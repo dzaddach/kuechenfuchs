@@ -43,7 +43,7 @@ import { AuthService } from '../auth/auth.service';
             @else { Anmelden <app-icon name="arrow" /> }
           </button>
         </form>
-        <p class="privacy-note"><app-icon name="shield" /> Deine Anmeldung wird sicher und verschlüsselt behandelt.</p>
+        <p class="privacy-note"><app-icon name="shield" /> Die Anmeldung verwendet HttpOnly-Sitzungscookies. Eine verschlüsselte Übertragung besteht nur über HTTPS.</p>
       </section>
       <p class="login-footer">Küchenfuchs · Clever kochen. Günstiger einkaufen.</p>
     </main>

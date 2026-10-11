@@ -79,7 +79,7 @@ P2 bleibt unabhängig davon ASP.NET-Core-Identity-basiert; es richtet weder Keyc
 
 ## Authentifizierung und Sicherheit
 
-- PWA: Empfehlung Same-Origin, sichere `HttpOnly`, `Secure`, angemessen `SameSite`-Cookies; CSRF-Schutz für schreibende Cookie-authentifizierte Aufrufe. Keine langlebigen Bearer-Tokens in `localStorage`.
+- PWA: Empfehlung Same-Origin, sichere `HttpOnly`, `Secure`, angemessen `SameSite`-Cookies; **jeder Cookie-authentifizierte schreibende API-Endpunkt** (POST, PUT, PATCH, DELETE und sonstige zustandsändernde Methoden) muss wirksam CSRF-geschützt sein. Mutationen verlangen einen gültigen serverseitig validierten Anti-Forgery-Token oder eine gleichwertige, dokumentierte CSRF-Abwehr; SameSite allein genügt nicht. Neue P3-Endpunkte müssen diesen Schutz und Ablehnung bei fehlendem/ungültigem Token in Integrationstests nachweisen. Keine langlebigen Bearer-Tokens in `localStorage`.
 - ChatGPT-Client: separate OAuth-Integration und Scopes; eine angemeldete PWA-Session ist nicht übertragbar. Die OAuth-Autorisierung muss Haushalt und Nutzer unveränderbar an den Token binden und bei jedem Zugriff serverseitig prüfen.
 - Jeder Endpunkt autorisiert Haushaltsmitgliedschaft, Ressourcenzugriff und Rolle serverseitig. IDs sind nicht geheim und erlauben keinen Zugriff.
 - Validierung von Payload-Größen, Zeichensatz, Datumsbereichen, Mengen, URI-Längen und Paginierungsgrenzen; Schutz vor Mass Assignment durch DTO-Allowlist.

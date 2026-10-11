@@ -122,7 +122,11 @@ var app = builder.Build();
 
 if (args.Contains("--bootstrap-admin", StringComparer.Ordinal))
 {
-    await DatabaseBootstrapper.InitializeAsync(app.Services, app.Configuration, applyMigrations: false);
+    await DatabaseBootstrapper.InitializeAsync(
+        app.Services,
+        app.Configuration,
+        applyMigrations: false,
+        requireInitialAdmin: true);
     return;
 }
 

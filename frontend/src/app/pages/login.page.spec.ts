@@ -32,6 +32,29 @@ describe('LoginPage', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('does not claim that local HTTP traffic is encrypted', async () => {
+    await TestBed.configureTestingModule({
+      imports: [LoginPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            error: signal(''),
+            ensureSession: vi.fn().mockResolvedValue(false),
+            login: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(LoginPage);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Eine verschlüsselte Übertragung besteht nur über HTTPS.');
+    expect(fixture.nativeElement.textContent).not.toContain('sicher und verschlüsselt behandelt');
+  });
+
   it('logs in and navigates to the app after a valid submission', async () => {
     const login = vi.fn().mockResolvedValue(true);
     await TestBed.configureTestingModule({

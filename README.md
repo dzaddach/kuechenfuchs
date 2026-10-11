@@ -31,15 +31,24 @@ Voraussetzungen: Docker mit Docker Compose v2.29 oder neuer. Die Entwicklung lä
 
 ```sh
 cp .env.example .env
-# .env lokal befüllen: INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD,
-# INITIAL_HOUSEHOLD_NAME und POSTGRES_PASSWORD setzen.
+# .env lokal befüllen: POSTGRES_PASSWORD setzen.
+# Für den erstmaligen Administrator zusätzlich INITIAL_ADMIN_EMAIL,
+# INITIAL_ADMIN_PASSWORD und INITIAL_HOUSEHOLD_NAME setzen.
 # INITIAL_ADMIN_PASSWORD muss mindestens 14 Zeichen haben und Groß-/Kleinbuchstaben,
 # Zahl sowie Sonderzeichen enthalten. Beispielwert erzeugen:
 openssl rand -base64 32
 docker compose up --build --detach
+docker compose --profile bootstrap run --rm bootstrap
 ```
 
-Beim ersten Start werden Migrationen ausgeführt und genau ein Initialadministrator sowie der erste Haushalt angelegt. Ohne vollständige `INITIAL_ADMIN_*`-/Haushaltskonfiguration startet die leere Entwicklungsdatenbank nicht erfolgreich. Die Bootstrap-Zugangsdaten werden nur bei leerer Benutzertabelle verwendet; Änderungen an `.env` ändern ein bestehendes Passwort nicht. `.env` ist lokal und darf nicht committet werden.
+Die API führt beim Stackstart die EF-Core-Migrationen aus. Der einmalige Bootstrap-Befehl legt Administrator und Haushalt in einem separaten, nach erfolgreichem Lauf entfernten Container an. Danach die Werte von `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD` und `INITIAL_HOUSEHOLD_NAME` aus `.env` löschen und die API ohne diese Konfiguration neu erstellen:
+
+```sh
+# .env bearbeiten: Bootstrap-Werte leeren oder entfernen, speichern.
+docker compose up --detach --force-recreate api
+```
+
+Der API-Dienst enthält diese Bootstrap-Variablen grundsätzlich nicht. Das Datenbankvolume behält Benutzer und Haushalt; erneutes Starten der API ohne Bootstrap-Werte löscht oder ändert sie nicht. Das Bootstrap-Profil lässt sich ohne konfigurierte Zugangsdaten nicht erfolgreich ausführen, wenn die Datenbank noch leer ist. `.env` ist lokal und darf nicht committet werden. Den vollständigen sicheren Ablauf und seine Tests beschreibt [docs/deployment.md](docs/deployment.md).
 
 Die Beispielwerte sind ausdrücklich ausschließlich für lokale Entwicklung gedacht und nicht als produktive Secrets geeignet. Compose verlangt `POSTGRES_PASSWORD`; für Produktion muss ein eigenes sicheres Secret gesetzt werden. Für Start, Stopp, Neustart, Migrationen und Backups siehe [docs/deployment.md](docs/deployment.md).
 
@@ -47,7 +56,7 @@ Die P0-Smoke-Tests laufen mit `./scripts/test-p0.sh`; P2-Authentifizierungstests
 
 ## Anmeldung und Oberfläche lokal prüfen (P2)
 
-Die empfohlene Ansicht läuft im vollständigen Stack hinter Caddy. Falls `.env` noch nicht vorhanden ist, zuerst `cp .env.example .env` ausführen und ausschließlich das lokale Beispielkennwort verwenden.
+Die empfohlene Ansicht läuft im vollständigen Stack hinter Caddy. Vor dem erstmaligen Start das oben beschriebene Bootstrap-Verfahren ausführen; danach sind die Bootstrap-Werte aus `.env` entfernt.
 
 ```sh
 docker compose up --build --detach
