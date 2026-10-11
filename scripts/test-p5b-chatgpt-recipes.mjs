@@ -171,6 +171,38 @@ async function main() {
   assert.equal(recipeCount(homeId), 3);
   check('getRecipe returns the recipe and scales amounts for 6 servings without changing stored data');
 
+  assert.equal((await call('getRecipe', readToken, { params: { recipeId: carbonara.id } })).json.truncated, false);
+  const huge = {
+    name: 'Riesenrezept <Grenzwerte>',
+    description: '<'.repeat(500),
+    baseServings: 4,
+    preparationMinutes: 600,
+    category: 'Test',
+    tags: Array.from({ length: 20 }, (_, index) => `t${index}-${'<'.repeat(30)}`),
+    ingredients: Array.from({ length: 100 }, (_, index) => ({ name: `${index}`.padEnd(120, '<'), amount: 1.5, unitCode: 'g', foodId: null })),
+    steps: Array.from({ length: 100 }, (_, index) => ({ description: `${index}`.padEnd(2_000, '<') })),
+  };
+  const hugeRecipe = await createRecipeViaPwa(pwa, csrf, homeId, huge);
+  const rawHuge = await fetch(`${api}/recipes/${hugeRecipe.id}`, { headers: { Authorization: `Bearer ${readToken}` } });
+  const rawText = await rawHuge.text();
+  assert.equal(rawHuge.status, 200);
+  assert.match(rawHuge.headers.get('content-type'), /^application\/json/);
+  assert.ok(rawText.length < 100_000, `response has ${rawText.length} characters`);
+  const hugeResponse = JSON.parse(rawText);
+  validate(hugeResponse, operation('getRecipe').op.responses['200'].content['application/json'].schema);
+  assert.equal(hugeResponse.truncated, true);
+  assert.equal(hugeResponse.name, huge.name);
+  assert.ok(hugeResponse.steps.length > 0);
+  const stored = (await pwa.request(`${origin}/api/v1/households/${homeId}/recipes/${hugeRecipe.id}`)).json();
+  assert.equal(stored.steps.length, 100);
+  assert.ok(stored.steps.every((step) => step.description.length === 2_000));
+  assert.ok(stored.ingredients.every((item) => item.name.length === 120));
+  response = await call('listRecipes', readToken);
+  assert.equal(response.status, 200);
+  assert.equal(response.json.count, 4);
+  check('maximum-size recipe: complete JSON below 100,000 characters with truncated=true; stored recipe unchanged');
+  sql(`UPDATE "Recipes" SET "IsArchived"=true WHERE "Id"='${hugeRecipe.id}'`);
+
   for (const recipeId of [foreignRecipeId, secondRecipe.id, randomUUID()]) {
     assert.equal((await call('getRecipe', readToken, { params: { recipeId } })).status, 404);
   }

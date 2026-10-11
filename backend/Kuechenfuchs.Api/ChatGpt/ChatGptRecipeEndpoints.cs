@@ -6,7 +6,9 @@ using Kuechenfuchs.Api.Data;
 using Kuechenfuchs.Api.ExternalIdentity;
 using Kuechenfuchs.Api.Identity;
 using Kuechenfuchs.Api.Recipes;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Kuechenfuchs.Api.ChatGpt;
 
@@ -24,9 +26,6 @@ public static class ChatGptRecipeEndpoints
     private const int MaxSearchLength = 100;
     private const int MaxCategoryLength = 40;
     private const int MaxSummaryDescriptionLength = 300;
-    // ChatGPT accepts responses below 100,000 characters; keep a generous safety margin for JSON overhead.
-    private const int MaxDetailTextCharacters = 60_000;
-    private const int TruncatedStepLength = 400;
     private static readonly EventId RecipeSaved = new(5201, nameof(RecipeSaved));
     private static readonly EventId SaveRequested = new(5202, nameof(SaveRequested));
     private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web);
@@ -60,6 +59,7 @@ public static class ChatGptRecipeEndpoints
         string? category,
         int? limit,
         HttpContext context,
+        IOptions<JsonOptions> jsonOptions,
         KuechenfuchsDbContext database,
         CancellationToken cancellationToken)
     {
@@ -89,13 +89,17 @@ public static class ChatGptRecipeEndpoints
             .Where(household => household.Id == linked.HouseholdId)
             .Select(household => household.Name)
             .SingleAsync(cancellationToken);
-        return Results.Ok(new ChatGptRecipeList(householdName, count, count > recipes.Count, recipes));
+        // Exactly the measured JSON is sent; oversized result lists are cut to a fitting prefix (truncated=true).
+        return Json(ChatGptResponseLimit.FitList(
+            new ChatGptRecipeList(householdName, count, count > recipes.Count, recipes),
+            jsonOptions.Value.SerializerOptions));
     }
 
     private static async Task<IResult> GetAsync(
         Guid recipeId,
         int? servings,
         HttpContext context,
+        IOptions<JsonOptions> jsonOptions,
         KuechenfuchsDbContext database,
         CancellationToken cancellationToken)
     {
@@ -125,13 +129,8 @@ public static class ChatGptRecipeEndpoints
                 item.UnitCode))
             .ToList();
         var steps = recipe.Steps.OrderBy(item => item.Position).Select(item => item.Description).ToList();
-        var truncated = steps.Sum(step => step.Length) + ingredients.Sum(item => item.Name.Length) > MaxDetailTextCharacters;
-        if (truncated)
-        {
-            steps = steps.Select(step => step.Length > TruncatedStepLength ? step[..TruncatedStepLength] + " …" : step).ToList();
-        }
-
-        return Results.Ok(new ChatGptRecipeDetail(
+        // The serialized response (incl. escaping and JSON overhead) is bounded; only this copy is shortened.
+        return Json(ChatGptResponseLimit.FitDetail(new ChatGptRecipeDetail(
             recipe.Id,
             recipe.Name,
             recipe.Description,
@@ -142,7 +141,7 @@ public static class ChatGptRecipeEndpoints
             recipe.Tags,
             ingredients,
             steps,
-            truncated));
+            Truncated: false), jsonOptions.Value.SerializerOptions));
     }
 
     private static async Task<IResult> DraftAsync(
@@ -359,6 +358,8 @@ public static class ChatGptRecipeEndpoints
                 .ToList(),
             Steps = write.Steps.Select(step => step with { Description = step.Description.Trim() }).ToList(),
         };
+
+    private static IResult Json(string json) => Results.Text(json, "application/json; charset=utf-8");
 
     private static IResult InvalidInput() =>
         Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request");

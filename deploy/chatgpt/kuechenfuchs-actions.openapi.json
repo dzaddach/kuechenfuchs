@@ -447,7 +447,7 @@
           },
           "truncated": {
             "type": "boolean",
-            "description": "true, wenn mehr Treffer als geliefert existieren"
+            "description": "true, wenn mehr Treffer existieren als geliefert oder die Liste wegen der Antwortgröße gekürzt wurde"
           },
           "recipes": {
             "type": "array",
@@ -537,7 +537,8 @@
             }
           },
           "truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "true, wenn Texte, Schritte oder Zutaten wegen der Antwortgröße gekürzt oder weggelassen wurden; das gespeicherte Rezept ist vollständig"
           }
         }
       },

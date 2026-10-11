@@ -86,10 +86,12 @@ Statisch publizierte OpenAPI-3.1-Spezifikation: [`deploy/chatgpt/kuechenfuchs-ac
 | operationId | Methode / Pfad | Scope | Verhalten |
 |---|---|---|---|
 | `listRecipes` | `GET /api/v1/chatgpt/recipes?q&category&limit` | `recipes:read` | gemeinsame Suche mit der PWA (`RecipeEndpoints.Search`), nicht archiviert, max. 50, `count`/`truncated` |
-| `getRecipe` | `GET /api/v1/chatgpt/recipes/{recipeId}?servings` | `recipes:read` | Detail; `servings` (1–50) skaliert Mengen über `RecipeQuantityScaler`, speichert nichts; sehr lange Schritte werden für die 100.000-Zeichen-Grenze gekürzt (`truncated`) |
+| `getRecipe` | `GET /api/v1/chatgpt/recipes/{recipeId}?servings` | `recipes:read` | Detail; `servings` (1–50) skaliert Mengen über `RecipeQuantityScaler`, speichert nichts |
 | `createRecipeDraft` | `POST /api/v1/chatgpt/recipe-drafts` | `recipes:write` | bestehender `AiRecipeDraftService` inkl. Zustimmung, Budget und Validierung; nichts gespeichert |
 | `requestRecipeSave` | `POST /api/v1/chatgpt/recipe-save-requests` | `recipes:write` | Validierung wie `POST /households/{hid}/recipes`; legt nur einen `ChatGptRecipeSaveRequest` (15 min, max. 10 offen je Verbindung) an |
 | `confirmRecipeSave` | `POST /api/v1/chatgpt/recipe-save-requests/{confirmationId}/confirm` `{ "confirmed": true }` | `recipes:write` | `x-openai-isConsequential: true`; atomar einmalig, an Verknüpfung und Haushalt gebunden; erneute Validierung, Anlage über `RecipeEndpoints.CreateRecipe`; `201`, Wiederholung `409`, abgelaufen `410` |
+
+Antwortgröße: `listRecipes` und `getRecipe` senden exakt den gemessenen, vollständigen JSON-Text und bleiben inklusive Escaping und JSON-Overhead unter 90.000 Zeichen (`ChatGptResponseLimit`; OpenAI-Grenze 100.000). Normale Rezepte werden unverändert ausgegeben. Übergroße Antworten werden schrittweise gekürzt (Schritte, Zutatennamen, Beschreibung/Tags, dann längster passender Anfang der Schritte bzw. Zutaten oder der Trefferliste) und mit `truncated: true` markiert; das gespeicherte Rezept bleibt unverändert.
 
 Eingaben sind strikt (`JsonUnmappedMemberHandling.Disallow`): unbekannte Felder wie `householdId`, `id`, `isArchived`, `version`, `foodId` führen zu `400`. Rezepttexte werden als Daten gespeichert und nicht protokolliert. Sicherheitsereignisse: Event-IDs 5201 (gespeichert) und 5202 (Speicheranfrage).
 - Authentifizierung nutzerbezogen über OAuth 2.0 Authorization Code; eng begrenzte Scopes wie `recipes:read` und `recipes:write`. Keine Haushalts-übergreifenden Sammelkonten oder globalen Bearer-Schlüssel.
