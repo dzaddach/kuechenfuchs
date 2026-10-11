@@ -1,6 +1,12 @@
 # Küchenfuchs – Deployment- und Betriebskonzept
 
-**Stand:** 10. Oktober 2026 · **Status:** Zielbild; keine Ressourcen werden mit diesem Dokument gestartet oder provisioniert
+**Stand:** 11. Oktober 2026 · **Status:** Betriebszielbild; keine Ressourcen werden mit diesem Dokument gestartet oder provisioniert
+
+## ChatGPT Actions OAuth (P5a, geplant)
+
+Die lokale Entwicklungs-URL (`http://localhost:8080`) ist nicht für ChatGPT Actions geeignet. Vor einem Actions-Ende-zu-Ende-Test ist separat eine vom Auftraggeber freigegebene öffentliche Testdomain mit gültigem Zertifikat, TLS 1.2+ und Port 443 erforderlich. OAuth-Discovery, Authorization-/Token-Endpunkte und Action-API müssen gemäß den aktuellen OpenAI-Vorgaben unter derselben Origin bereitgestellt werden; Caddy wäre der einzige öffentliche Dienst. PostgreSQL, API und ein gegebenenfalls gewählter Keycloak-Dienst bleiben intern. Testdaten und Zugangsdaten sind isoliert von Produktion. Es werden keine Tunnel, Provider-Container oder öffentlichen Endpunkte durch diese Dokumentation gestartet.
+
+Die bevorzugte Kandidatin ist Duende IdentityServer im ASP.NET-Core-Prozess, vorbehaltlich Lizenzprüfung. Bei Keycloak-Fallback müssen Same-Origin-Pfad-Routing und externer Issuer exakt getestet werden. Zertifikats-/DNS-Freigabe, OAuth-Secrets und Redirect-Registrierung gehören zu einem späteren, ausdrücklich freigegebenen P5a-Betriebsschritt; Einzelheiten: [P5a OAuth-Konzept](./chatgpt-actions-oauth.md).
 
 ## Lokale Entwicklung (P0)
 

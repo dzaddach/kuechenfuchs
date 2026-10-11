@@ -1,6 +1,6 @@
 # Küchenfuchs – KI-Integration
 
-**Stand:** 11. Oktober 2026 · **Status:** P4-PWA-Rezeptentwurf umgesetzt; externe ChatGPT-Actions bleiben separat
+**Stand:** 11. Oktober 2026 · **Status:** P4-PWA-Rezeptentwurf umgesetzt; P5a-OAuth-Konzept separat dokumentiert, nicht zur Implementierung freigegeben
 
 ## Zweck und Grenze
 
@@ -16,6 +16,12 @@ KI unterstützt bei Rezeptideen und optional beim Zuordnen unklarer Lebensmittel
 6. Erst die Aktion **„Rezept übernehmen“** speichert über den normalen, CSRF-geschützten Rezept-Endpunkt.
 
 Optionale Lebensmittelzuordnung durch KI wird nicht automatisch übernommen. Der P4-Vertrag liefert keine `FoodId`; textuelle Food-Vorschläge bleiben Hinweise für den Nutzer und erfordern eine spätere manuelle Zuordnung. Niedrige Sicherheit ist sichtbar. KI ist weder Preis-/Verfügbarkeitsquelle noch Voraussetzung für Einkaufsmengen oder Angebotsberechnung.
+
+## Externe ChatGPT-Actions: Abgrenzung zu P4
+
+Die P4-OpenAI-API-Anbindung ist ein Backend-zu-Backend-Anruf, der von der PWA ausgelöst wird. ChatGPT Actions ist ein separater OAuth-Client und darf weder den OpenAI-API-Key noch die PWA-Cookie-Session erhalten. P5a-Planung für Authorization Code, Providerwahl, Identitäts-/Haushaltszuordnung, Tokenprüfung, Widerruf, öffentliches HTTPS und Datei-/Testumfang: [ChatGPT Actions OAuth](./chatgpt-actions-oauth.md).
+
+Empfohlen wird zunächst die Evaluation von Duende IdentityServer im ASP.NET-Core-Prozess, da dieser Weg denselben ASP.NET-Core-Identity-Benutzerbestand verwenden kann. Die Produktionslizenz für die konkrete private Nutzung und die Kompatibilität mit dem aktuellen Actions-Client müssen vor Implementierungsfreigabe geklärt werden. Keycloak bleibt eine etablierte, aber nicht direkt integrierte Alternative; dann ist sicheres Account-Linking erforderlich. Bis zur Entscheidung bleiben ASP.NET-Identity-Cookie-Login, CSRF-Schutz und P4 unverändert.
 
 ## P4-Implementierung
 

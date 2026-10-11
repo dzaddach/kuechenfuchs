@@ -1,6 +1,6 @@
 # Küchenfuchs – Architektur
 
-**Stand:** 10. Oktober 2026 · **Status:** Planung, nicht zur Implementierung freigegeben
+**Stand:** 11. Oktober 2026 · **Status:** P0–P4 umgesetzt; Architekturplanung für P5a, keine OAuth-Implementierung freigegeben
 
 ## Architekturziel
 
@@ -58,9 +58,9 @@ Die PWA sendet nur erforderliche, nutzerfreigegebene Eingaben an die API. Die AP
 
 Ein ChatGPT-Action-Client ruft mit nutzerbezogener Authentifizierung einen eng begrenzten Küchenfuchs-Endpunkt auf. Das Schreiben erfordert einen ausdrücklichen Speichervorgang. Keine ungeschützten Schreib-Endpunkte und kein globaler API-Schlüssel im Action-Schema.
 
-Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die PWA verwendet in P2 ASP.NET Core Identity mit einer Same-Origin-Cookie-Session; ChatGPT Actions benötigt dagegen OAuth-Token im Authorization-Header. Küchenfuchs implementiert keinen eigenen OAuth-/OIDC-Autorisierungsserver. Für P5a wird ein bestehender Identity Provider (bevorzugt Keycloak als selbst betriebener Kandidat) als Ausgabeinstanz für Actions-Token geprüft. Die API validiert dessen Token und ordnet die stabile Provider-Identität einer internen Küchenfuchs-Identität und deren Haushaltsrechten zu. Vor einer Festlegung sind Kontoverknüpfung, Scopes, Token-Widerruf, Redirect-Allowlist und ein echter End-to-End-Test gegen die dann aktuelle ChatGPT-Actions-Spezifikation nachzuweisen. P2 allein stellt ausdrücklich noch keinen OAuth-Endpunkt für ChatGPT bereit.
+Die PWA und ChatGPT sind zwei getrennte Clients mit eigenen Authentifizierungsflüssen. Die PWA verwendet ASP.NET Core Identity mit der bestehenden Same-Origin-Cookie-Session und CSRF-Prüfung; ChatGPT Actions benötigt OAuth-Token im `Authorization`-Header. Diese PWA-Mechanismen bleiben unverändert. Für P5a wird Duende IdentityServer als ASP.NET-Core-nahe Kandidatin evaluiert, weil sie den bestehenden Identity-Benutzerbestand nutzen kann, ohne ein zweites Benutzerverzeichnis einzuführen. Produktionslizenz und Actions-Interoperabilität sind vor einer Freigabe nachzuweisen. Keycloak bleibt ein etablierter Fallback, erfordert aber explizites Account-Linking und Same-Origin-Proxying; es ist nicht direkt an die vorhandene Identity-Datenbank angeschlossen.
 
-Die Trennung vermeidet, dass die PWA-Cookie-Session als Action-Token missbraucht wird. Ein externer Provider bedeutet zusätzliche Betriebs- und Kontoverknüpfungsarbeit; falls dies für den privaten MVP nicht tragbar ist, bleiben Actions zurückgestellt und die PWA-KI-Funktion unabhängig nutzbar. Belege und offene Entscheidung: [API-Design](./api-design.md#chatgpt-actions-und-oauthoidc) und [offene Entscheidungen](./open-decisions.md).
+Die API akzeptiert Actions-Zugriffe nur auf ausdrücklich Bearer-only-konfigurierten Routen/Policies. Die Identität basiert auf validiertem `(iss, sub)` und wird auf einen aktiven internen Benutzer aufgelöst. Der Grant bindet einen ausgewählten Haushalt; die API prüft dessen aktuelle Mitgliedschaft bei jedem Aufruf. Cookie-Schreibzugriffe behalten CSRF-Schutz; Action-Routen dürfen PWA-Cookies weder als Authentifizierung akzeptieren noch einen benutzerdefinierten CSRF-Header erwarten. Discovery, OAuth-Endpunkte und API müssen für Actions öffentlich über eine genehmigte HTTPS-Origin erreichbar sein. Implementierungs- und Testdetails: [P5a OAuth-Konzept](./chatgpt-actions-oauth.md), [API-Design](./api-design.md#chatgpt-actions-und-oauthoidc) und [offene Entscheidungen](./open-decisions.md).
 
 ## Systemübersicht
 
